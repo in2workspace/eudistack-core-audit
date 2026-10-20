@@ -1,0 +1,55 @@
+# TEST FIXTURE — not a published catalogue.
+# Stands in for the 2.1.0 snapshot (only the issuance category) to prove AC-18.
+# Minor change over 2.0.0: IssuanceRequested gains the optional `on_behalf_of_organization`.
+
+catalog_version: 2.1.0
+
+types:
+  actor:
+    kind:  { type: enum, values: [Person, System, Holder], required: true }
+    id:    { type: string, required: true }
+    name:  { type: string, required: false }
+    email: { type: email, required: false }
+    organization: { type: string, required: false }
+    attestation_id: { type: string, required: false }
+  person:
+    identifier: { type: string, required: false }
+    name:       { type: string, required: false }
+    email:      { type: email, required: false }
+  hash: { type: string, pattern: "^[a-z0-9-]+:.+$" }
+  delivery_method: { type: enum, values: [email, ui, direct] }
+
+categories:
+  issuance:
+    producer: issuer
+    events:
+      IssuanceRequested:
+        action: Issue
+        searchable: [holder.identifier, holder.email, attestation_type]
+        results: [Success]
+        details:
+          attestation_type: { type: string, required: true }
+          issuance_mode:    { type: enum, values: [ThirdParty, SelfIssuance], required: true }
+          delivery_method:  { type: delivery_method, required: true }
+          holder:           { type: person, required: true }
+          on_behalf_of_organization: { type: boolean, required: false }
+          offer_expires_at: { type: date-time, required: "delivery_method in [email, ui]" }
+
+      IssuanceCompleted:
+        action: Issue
+        searchable: [holder.identifier, holder.email, attestation_type, signing_certificate, attestation_hash]
+        results: [Success]
+        details:
+          provider_legal_name:      { type: string, required: true }
+          provider_registration_id: { type: string, required: true }
+          attestation_type:         { type: string, required: true }
+          delivery_method:          { type: delivery_method, required: true }
+          holder:                   { type: person, required: true }
+          issued_attributes:        { type: "array of string", required: true }
+          valid_from:               { type: date-time, required: false }
+          valid_until:              { type: date-time, required: false }
+          signing_certificate:      { type: hash, required: true }
+          signature_algorithm:      { type: string, required: true }
+          attestation_hash:         { type: hash, required: true }
+          wallet_interaction:       { type: object, required: "delivery_method in [email, ui]" }
+          accepted_by_holder:       { type: boolean, required: "delivery_method in [email, ui]" }

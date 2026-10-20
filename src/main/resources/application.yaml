@@ -1,0 +1,91 @@
+# Audit API service. Every value can be overridden by environment variables (relaxed binding):
+# AUDIT_ROLE, AUDIT_SECURITY_JWKS_URI, AUDIT_DATASOURCE_WRITER_URL, …
+server:
+  port: ${SERVER_PORT:8080}
+  # X-Forwarded-Host / X-Forwarded-Prefix from the load balancer (PO-9: only reachable through it).
+  forward-headers-strategy: framework
+  shutdown: graceful
+
+spring:
+  threads:
+    virtual:
+      enabled: true
+  main:
+    banner-mode: off
+  jackson:
+    default-property-inclusion: non_null
+
+management:
+  server:
+    # Actuator off the API port and off the public ingress (SAD-DEC-010).
+    port: ${MANAGEMENT_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.1}
+    propagation:
+      type: w3c,b3
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://otel-collector:4318/v1/traces}
+    metrics:
+      export:
+        enabled: ${OTLP_METRICS_ENABLED:true}
+        url: ${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT:http://otel-collector:4318/v1/metrics}
+        step: 30s
+
+logging:
+  structured:
+    format:
+      console: ${LOG_FORMAT:logstash}
+  level:
+    root: INFO
+    com.eudistack.audit: ${LOG_LEVEL:INFO}
+
+audit:
+  # writer | reader | archiver | all | provisioner (design §3.2). `all` is for local and CI only.
+  role: ${AUDIT_ROLE:all}
+  web:
+    internal-hosts:
+      - 'audit\.internal\..+'
+    tenant-header: X-Tenant-Id
+    environment-suffixes: [-stg, -dev, -pre]
+  security:
+    jwks-uri: ${AUDIT_SECURITY_JWKS_URI:}
+    # e.g. https://{tenant}.stg.eudistack.net/verifier,https://{tenant}-stg.eudistack.net/verifier
+    trusted-issuers: ${AUDIT_SECURITY_TRUSTED_ISSUERS:}
+    # Empty until the Verifier emits an audience for this service (PO-12).
+    audience: ${AUDIT_SECURITY_AUDIENCE:}
+  datasource:
+    writer:
+      url: ${AUDIT_DB_URL:jdbc:postgresql://localhost:5432/audit}
+      username: ${AUDIT_DB_WRITER_USER:audit_writer}
+      password: ${AUDIT_DB_WRITER_PASSWORD:}
+    reader:
+      url: ${AUDIT_DB_URL:jdbc:postgresql://localhost:5432/audit}
+      username: ${AUDIT_DB_READER_USER:audit_reader}
+      password: ${AUDIT_DB_READER_PASSWORD:}
+    archiver:
+      url: ${AUDIT_DB_URL:jdbc:postgresql://localhost:5432/audit}
+      username: ${AUDIT_DB_ARCHIVER_USER:audit_archiver}
+      password: ${AUDIT_DB_ARCHIVER_PASSWORD:}
+    migrator:
+      url: ${AUDIT_DB_URL:jdbc:postgresql://localhost:5432/audit}
+      username: ${AUDIT_DB_MIGRATOR_USER:audit_migrator}
+      password: ${AUDIT_DB_MIGRATOR_PASSWORD:}
+  query:
+    cursor-secret: ${AUDIT_QUERY_CURSOR_SECRET:}
+  archive:
+    storage: ${AUDIT_ARCHIVE_STORAGE:s3}
+    bucket: ${AUDIT_ARCHIVE_BUCKET:}
+    region: ${AWS_REGION:eu-west-1}
+    endpoint: ${AUDIT_ARCHIVE_ENDPOINT:}
+  provisioner:
+    tenants: ${AUDIT_PROVISIONER_TENANTS:}

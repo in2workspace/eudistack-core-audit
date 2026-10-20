@@ -1,0 +1,67 @@
+# Local development stack of the audit service alone. The platform stack in eudistack-platform-dev
+# will consume it once the architect wires it in; run it standalone only while working on this service.
+#
+#   docker compose up --build
+#
+# Ports: 8090 API (role all: internal and tenant hosts), 8091 actuator.
+# Writes need Host: audit.internal.localhost; queries Host: <tenant>.localhost (see README).
+services:
+  audit-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: audit
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./dev-tools/db/init-roles.sql:/docker-entrypoint-initdb.d/01-roles.sql:ro
+      - audit-db:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "audit"]
+      interval: 5s
+      retries: 20
+
+  # One-shot: schema platform + local tenants, as audit_migrator (AD-3).
+  audit-provisioner:
+    build: .
+    depends_on:
+      audit-db:
+        condition: service_healthy
+    environment:
+      AUDIT_ROLE: provisioner
+      AUDIT_DB_URL: jdbc:postgresql://audit-db:5432/audit
+      AUDIT_DB_MIGRATOR_PASSWORD: migrator
+      AUDIT_PROVISIONER_TENANTS: sandbox,red-logistica
+    restart: "no"
+
+  audit-api:
+    build: .
+    depends_on:
+      audit-provisioner:
+        condition: service_completed_successfully
+    # Local tokens of `./gradlew devTokens`: when present, the API trusts their key instead of the Verifier.
+    env_file:
+      - path: dev-tools/local-tokens/audit-local.env
+        required: false
+    environment:
+      AUDIT_ROLE: all
+      AUDIT_DB_URL: jdbc:postgresql://audit-db:5432/audit
+      AUDIT_DB_WRITER_PASSWORD: writer
+      AUDIT_DB_READER_PASSWORD: reader
+      AUDIT_DB_ARCHIVER_PASSWORD: archiver
+      # Verifier of the platform-dev stack; adjust to your local network.
+      AUDIT_SECURITY_JWKS_URI: ${AUDIT_SECURITY_JWKS_URI:-http://host.docker.internal:8081/verifier/oauth2/jwks}
+      AUDIT_SECURITY_TRUSTED_ISSUERS: ${AUDIT_SECURITY_TRUSTED_ISSUERS:-https://{tenant}.127.0.0.1.nip.io/verifier}
+      AUDIT_WEB_INTERNAL_HOSTS: 'audit\.internal\..+'
+      AUDIT_QUERY_CURSOR_SECRET: local-cursor-secret-not-for-production-0001
+      AUDIT_ARCHIVE_STORAGE: filesystem
+      AUDIT_ARCHIVE_FILESYSTEMROOT: /tmp/cold-storage
+      OTLP_METRICS_ENABLED: "false"
+      TRACING_SAMPLING_PROBABILITY: "0"
+    ports:
+      - "8090:8080"
+      - "8091:8081"
+
+volumes:
+  audit-db:

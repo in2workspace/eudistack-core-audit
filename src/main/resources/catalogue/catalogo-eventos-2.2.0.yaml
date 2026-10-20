@@ -1,0 +1,551 @@
+# Audit event catalogue.
+# Annex of the prd.md of the feature "API de auditoría".
+#
+# The audit API accepts only the event types and versions listed here, with the fields each type
+# declares in `details`. Any other field is rejected. Every event also carries the canonical record.
+#
+# Field notation: { type, required, description }.
+#   required: true | false | "<condition>" (required only when the condition holds; otherwise omitted).
+# A field that could not be determined before a failure is omitted, never invented.
+# Personal data goes in clear. Secrets, keys, tokens, presented credentials, configuration values
+# and full attestation content are never part of an event.
+#
+# Storage: the canonical record is stored as indexed columns; `details` is stored as received, as JSON.
+# `searchable` lists the `details` paths the query API can filter on (exact match). Any other path
+# is not searchable.
+#
+# Versioning (`catalog_version`, semver):
+#   minor: a new event type, a new optional field, a new reason or enum value, a new searchable path.
+#   major: removing or renaming a type or field, making a field required, changing a field's meaning,
+#          or moving a reason to another result.
+#   patch: descriptions only.
+# The API accepts every published version. An event is always read with the version it carries.
+
+catalog_version: 2.2.0
+
+canonical_record:
+  event_id:       { type: uuid, required: true, description: Set by the producing system. Idempotency key. }
+  event_type:     { type: string, required: true, description: One of the event types below. }
+  event_version:  { type: semver, required: true, description: Catalogue version the event was emitted under. }
+  occurred_at:    { type: date-time, required: true, description: When the action happened. Set by the producing system. }
+  recorded_at:    { type: date-time, required: true, description: When the audit API stored the event. Set by the API, never sent. }
+  tenant:         { type: string, required: true, description: "Tenant the event belongs to, or `platform`. Taken from the authenticated context of the operation." }
+  organization:   { type: string, required: false, description: "organizationIdentifier the operation belongs to, when there is one." }
+  source:         { type: string, required: true, description: "Producing system, e.g. `issuer`, `verifier`, `attestation-registry`, `status-lists`, `signing`, `infra-detection`, `audit-api`, `audit-archiver`." }
+  actor:          { type: actor, required: true, description: Who caused the action. }
+  action:         { type: string, required: true, description: Business verb. Each event type allows exactly one. }
+  resource:       { type: string, required: true, description: "Identifier of the object the action is about, `<kind>:<id>`, e.g. `issuance:0b6f1d2e-…`." }
+  result:         { type: enum, values: [Success, Denied, Failure], required: true }
+  reason:         { type: string, required: "result != Success", description: "Typed reason from the event type's vocabulary. It determines the result." }
+  correlation_id: { type: string, required: true, description: Shared by all events of one business operation. }
+  details:        { type: object, required: true, description: "Fields of the event type. `{}` when the type declares none." }
+
+result_semantics:
+  Success: Completed as requested.
+  Denied: Evaluated and a required condition was not met. Repeating it unchanged gives the same result.
+  Failure: Could not be evaluated or completed (error, unavailable dependency, invalid configuration). Repeating it later may succeed.
+
+types:
+  actor:
+    kind:  { type: enum, values: [Person, System, Holder], required: true }
+    id:    { type: string, required: true, description: "Person: user identifier. System: client or service identifier. Holder: subject identifier from the attestation or the issuance process." }
+    name:  { type: string, required: false, description: Full name of a person or holder, in clear. }
+    email: { type: email, required: false }
+    organization: { type: string, required: false, description: organizationIdentifier the actor represents. }
+    attestation_id: { type: string, required: false, description: Identifier of the attestation the actor authenticated with. }
+  person:
+    identifier: { type: string, required: false, description: "Subject identifier, e.g. national ID or registration number." }
+    name:       { type: string, required: false }
+    email:      { type: email, required: false }
+  hash: { type: string, pattern: "^[a-z0-9-]+:.+$", description: "Algorithm-prefixed digest, e.g. sha256:…" }
+  delivery_method: { type: enum, values: [email, ui, direct], description: Same values as the issuance API. }
+
+categories:
+
+  # ---------------------------------------------------------------- Issuance
+  issuance:
+    producer: issuer
+    events:
+      IssuanceRequested:
+        when: The issuance process is created, in every flow.
+        action: Issue
+        searchable: [holder.identifier, holder.email, attestation_type]
+        results: [Success]
+        details:
+          attestation_type: { type: string, required: true, description: credential_configuration_id. }
+          issuance_mode:    { type: enum, values: [ThirdParty, SelfIssuance], required: true }
+          delivery_method:  { type: delivery_method, required: true }
+          holder:           { type: person, required: true, description: Data of the person the attestation is for. }
+          on_behalf_of_organization: { type: boolean, required: false, description: True when issued for another organization of the tenant than the requester's. }
+          offer_expires_at: { type: date-time, required: "delivery_method in [email, ui]" }
+
+      CredentialOfferSent:
+        when: A credential offer is sent to the holder by email, first time or on request of a new one.
+        action: SendOffer
+        searchable: [recipient_email]
+        results: [Success, Failure]
+        reasons: { MailDeliveryFailed: Failure }
+        details:
+          offer_kind:       { type: enum, values: [Initial, Reissued], required: true }
+          recipient_email:  { type: email, required: true }
+          offer_expires_at: { type: date-time, required: true }
+
+      IssuanceCompleted:
+        when: The attestation is signed and delivered.
+        action: Issue
+        searchable: [holder.identifier, holder.email, attestation_type, signing_certificate, attestation_hash]
+        results: [Success]
+        details:
+          provider_legal_name:      { type: string, required: true }
+          provider_registration_id: { type: string, required: true, description: "EUID, LEI or NCA identifier." }
+          attestation_type:         { type: string, required: true }
+          delivery_method:          { type: delivery_method, required: true }
+          holder:                   { type: person, required: true }
+          issued_attributes:        { type: "array of string", required: true, description: Attribute names, without values. }
+          valid_from:               { type: date-time, required: false }
+          valid_until:              { type: date-time, required: false }
+          signing_certificate:      { type: hash, required: true }
+          signature_algorithm:      { type: string, required: true }
+          attestation_hash:         { type: hash, required: true, description: The attestation is never copied. }
+          wallet_interaction:       { type: object, required: "delivery_method in [email, ui]", description: "protocol, grant_type, format." }
+          accepted_by_holder:       { type: boolean, required: "delivery_method in [email, ui]", description: The holder accepted the attestation explicitly when claiming it. }
+
+      IssuanceAttemptFailed:
+        when: An issuance does not complete.
+        action: Issue
+        searchable: [holder.identifier, holder.email, attestation_type]
+        results: [Denied, Failure]
+        reasons:
+          UnknownAttestationType: Denied
+          InvalidRequestData: Denied
+          PolicyDenied: Denied
+          AttributeVerificationFailed: Denied
+          InvalidTransactionCode: Denied
+          InvalidProofOfPossession: Denied
+          AttributeSourceUnavailable: Failure
+          SigningFailed: Failure
+          StatusListUnavailable: Failure
+          InvalidConfiguration: Failure
+        details:
+          attestation_type: { type: string, required: false }
+          delivery_method:  { type: delivery_method, required: false }
+          holder:           { type: person, required: false }
+
+      ConsentRecorded:
+        when: Self-issuance, before personal data is captured.
+        action: Consent
+        results: [Success, Denied]
+        reasons: { ConsentRefused: Denied }
+        details:
+          consent_text_version: { type: string, required: true }
+          covered_attributes:   { type: "array of string", required: true }
+
+      AttributeVerificationEvidence:
+        when: Self-issuance with prior validation, once per operation, one entry per attribute.
+        action: VerifyAttributes
+        results: [Success, Denied, Failure]
+        reasons: { AttributeDenied: Denied, AttributeNotEvaluated: Failure }
+        details:
+          attribute_evidence:
+            type: array
+            required: true
+            items:
+              attribute:            { type: string, required: true }
+              verification_type:    { type: enum, values: [Documentary, AuthoritativeSourceQuery], required: true }
+              evidence_reference:   { type: string, required: true, description: Points to the check or document, never its content. }
+              authoritative_source: { type: string, required: "verification_type == AuthoritativeSourceQuery" }
+              result:               { type: enum, values: [Success, Denied, Failure], required: true }
+              reason:               { type: enum, values: [InsufficientEvidence, AttributeMismatch, InvalidFormat, AttributeNotRecognized, SourceUnavailable], required: "result != Success" }
+
+      WalletNotificationReceived:
+        when: The wallet sends an OID4VCI notification.
+        action: ReceiveNotification
+        results: [Success]
+        details:
+          notification_event: { type: enum, values: [credential_accepted, credential_failure, credential_deleted], required: true }
+          resulting_action:   { type: enum, values: [None, Revoked], required: true }
+
+  # ---------------------------------------------------------------- Lifecycle
+  lifecycle:
+    producer: issuer
+    events:
+      Revocation:
+        when: Every revocation request, accepted or rejected, and every revocation caused by a wallet notification.
+        action: Revoke
+        searchable: [holder.identifier, holder.email]
+        results: [Success, Denied, Failure]
+        reasons:
+          PolicyDenied: Denied
+          IssuanceNotFound: Denied
+          AlreadyRevoked: Denied
+          NotRevocable: Denied
+          StatusListUnavailable: Failure
+        details:
+          revocation_reason: { type: string, required: "revocation_origin == Request", description: Free text of the request, up to 280 characters. }
+          revocation_origin: { type: enum, values: [Request, WalletNotification], required: true }
+          holder:            { type: person, required: false }
+
+      IssuanceWithdrawn:
+        when: An issuance process in Draft is withdrawn.
+        action: Withdraw
+        results: [Success, Denied]
+        reasons: { PolicyDenied: Denied, InvalidStatus: Denied }
+        details: {}
+
+      IssuanceArchived:
+        when: A finished issuance process (withdrawn, revoked or expired) is archived.
+        action: Archive
+        results: [Success, Denied]
+        reasons: { PolicyDenied: Denied, InvalidStatus: Denied }
+        details: {}
+
+  # ---------------------------------------------------------------- Issuance queries
+  issuance_queries:
+    producer: issuer
+    events:
+      IssuanceQueried:
+        when: Every list or search of issuance processes.
+        action: QueryIssuances
+        searchable: [filters.identifier]
+        results: [Success, Denied]
+        reasons: { PolicyDenied: Denied, UnknownIdentifierType: Denied }
+        details:
+          filters:         { type: object, required: true, description: "status, credential_configuration_id, identifier_type and identifier as received." }
+          returned_count:  { type: integer, required: "result == Success" }
+
+      IssuanceDetailAccessed:
+        when: Every request for the detail of an issuance process.
+        action: ReadIssuance
+        searchable: [holder.identifier]
+        results: [Success, Denied]
+        reasons: { PolicyDenied: Denied, IssuanceNotFound: Denied }
+        details:
+          holder: { type: person, required: "result == Success" }
+
+  # ---------------------------------------------------------------- Status lists
+  status_lists:
+    producer: status-lists
+    events:
+      StatusListCreated:
+        when: A new status list is created for a tenant.
+        action: CreateStatusList
+        results: [Success, Failure]
+        reasons: { SigningFailed: Failure }
+        details:
+          list_uri:  { type: uri, required: true }
+          format:    { type: enum, values: [TokenStatusList, BitstringStatusList], required: true }
+          size:      { type: integer, required: true }
+
+      StatusEntryChanged:
+        when: A position is reserved at issuance, released or marked as revoked.
+        action: ChangeStatusEntry
+        searchable: [list_uri]
+        results: [Success, Failure]
+        reasons: { ListFull: Failure, StatusListUnavailable: Failure }
+        details:
+          operation:   { type: enum, values: [Reserve, Release, Revoke], required: true }
+          list_uri:    { type: uri, required: "result == Success" }
+          list_index:  { type: integer, required: "result == Success" }
+
+      StatusListPublished:
+        when: A status list is signed and published again.
+        action: PublishStatusList
+        searchable: [list_uri]
+        results: [Success, Failure]
+        reasons: { SigningFailed: Failure, PublicationFailed: Failure }
+        details:
+          list_uri:     { type: uri, required: true }
+          list_hash:    { type: hash, required: "result == Success" }
+
+  # ---------------------------------------------------------------- Signing
+  signing:
+    producer: signing
+    events:
+      SignatureRequested:
+        when: Every signing attempt of an attestation or a status list.
+        action: Sign
+        searchable: [signing_certificate]
+        results: [Success, Failure]
+        reasons:
+          NoActiveConfiguration: Failure
+          UnsupportedAlgorithm: Failure
+          CredentialsRejected: Failure
+          ProviderUnavailable: Failure
+          InvalidSignatureResponse: Failure
+        details:
+          signed_object:        { type: enum, values: [Attestation, StatusList], required: true }
+          modality:             { type: enum, values: [Qtsp, OwnKey], required: true }
+          signature_algorithm:  { type: string, required: false }
+          signing_certificate:  { type: hash, required: "result == Success" }
+          attempts:             { type: integer, required: true }
+          duration_ms:          { type: integer, required: true }
+
+      SigningConfigurationChanged:
+        when: A tenant signing configuration is created, replaced or retired, or its creation is rejected.
+        action: ConfigureSigning
+        results: [Success, Denied, Failure]
+        reasons: { PolicyDenied: Denied, InvalidKey: Denied, InvalidCertificate: Denied, KeyInUse: Denied, ProviderUnavailable: Failure }
+        details:
+          operation:            { type: enum, values: [Create, Replace, Retire], required: true }
+          previous_modality:    { type: enum, values: [Qtsp, OwnKey], required: false }
+          new_modality:         { type: enum, values: [Qtsp, OwnKey], required: "operation != Retire" }
+          signing_certificate:  { type: hash, required: false }
+
+  # ---------------------------------------------------------------- Types and catalogue
+  configuration:
+    producer: [attestation-registry, issuer]
+    events:
+      AttestationTypeChanged:
+        when: An attestation type is created, its draft changed, validated or published, accepted or rejected. Produced by the Attestation Registry.
+        action: ChangeAttestationType
+        searchable: [attestation_type]
+        results: [Success, Denied, Failure]
+        reasons: { PolicyDenied: Denied, ConformanceFailed: Denied, VersionConflict: Denied, InternalError: Failure }
+        details:
+          operation:         { type: enum, values: [Create, UpdateDraft, Validate, Publish], required: true }
+          attestation_type:  { type: string, required: true }
+          version:           { type: string, required: "operation == Publish" }
+          changes:           { type: object, required: "operation in [UpdateDraft, Publish]", description: Difference with the previous draft or version. }
+
+      CatalogEntryChanged:
+        when: An entry of the tenant catalogue is created, changed, enabled or disabled. Produced by the issuer.
+        action: ConfigureCatalog
+        searchable: [credential_configuration_id]
+        results: [Success, Denied]
+        reasons: { PolicyDenied: Denied, InvalidConfiguration: Denied }
+        details:
+          operation:                   { type: enum, values: [Create, Update, Enable, Disable], required: true }
+          credential_configuration_id: { type: string, required: true }
+          changes:                     { type: object, required: "operation == Update", description: Changed fields with old and new value. }
+
+  # ---------------------------------------------------------------- Authorization
+  authorization:
+    producer: any system that decides by powers
+    events:
+      AuthorizationDecision:
+        when: Every authorization decision, allowed or denied.
+        action: Authorize
+        searchable: [requested_action, target_organization]
+        results: [Success, Denied]
+        reasons: { PowerMissing: Denied, OutOfScope: Denied, TenantMismatch: Denied, PlatformTenantReadOnly: Denied }
+        details:
+          requested_action:  { type: string, required: true, description: "Action id of the authorization matrix, e.g. `E1`." }
+          evaluated_power:   { type: string, required: false, description: "`type · domain · function · action` that granted or was missing." }
+          user_type:         { type: enum, values: [platform_admin, tenant_admin, organization_admin, user], required: true }
+          target_organization: { type: string, required: false }
+
+  # ---------------------------------------------------------------- Verification and authentication
+  verification:
+    producer: verifier
+    events:
+      PresentationVerification:
+        when: Every verification request started by an OIDC client, with or without a presentation. Revocation and issuer-trust checks are results of this event, never separate events.
+        action: Verify
+        searchable: [holder.identifier, holder.email, oidc_client_id, presented_attestation_type]
+        results: [Success, Denied, Failure]
+        reasons:
+          OidcClientNotRegistered: Denied
+          HolderDeclined: Denied
+          RequiredAttributesNotDisclosed: Denied
+          InvalidPresentation: Denied
+          InvalidSignature: Denied
+          HolderBindingNotVerified: Denied
+          AttestationExpired: Denied
+          AttestationRevoked: Denied
+          IssuerNotTrusted: Denied
+          RequestExpired: Failure
+          RevocationStatusUnavailable: Failure
+          TrustListUnavailable: Failure
+        details:
+          oidc_client_id:             { type: string, required: true }
+          oidc_client_role:           { type: enum, values: [Intermediary, IAM], required: "reason != OidcClientNotRegistered" }
+          requested_attributes:       { type: "array of string", required: true }
+          presented_attestation_type: { type: string, required: "a presentation was received" }
+          attestation_issuer:         { type: string, required: "a presentation was received" }
+          disclosed_attributes:       { type: "array of string", required: "a presentation was received", description: Names only. }
+          presentation_authenticity:  { type: enum, values: [Verified, NotVerified], required: "a presentation was received" }
+          holder_binding:             { type: enum, values: [Verified, NotVerified], required: "a presentation was received" }
+          revocation_status:          { type: enum, values: [Valid, Revoked, Inconclusive], required: "a presentation was received" }
+          holder:                     { type: person, required: "result == Success", description: Identity of the authenticated holder, in clear. }
+          oidc_access_decision:       { type: enum, values: [Granted, Denied], required: "oidc_client_role == IAM and a presentation was received" }
+
+      IamSessionEstablished:
+        when: The Token Response is resolved for an OIDC client with role IAM, also on SSO reuse.
+        action: EstablishSession
+        searchable: [holder.identifier, oidc_client_id]
+        results: [Success, Failure]
+        reasons: { TokenIssuanceFailed: Failure }
+        details:
+          oidc_client_id:  { type: string, required: true }
+          session_origin:  { type: enum, values: [Presentation, SsoReuse], required: true }
+          holder:          { type: person, required: true }
+          identity_claims: { type: object, required: "result == Success", description: Identity data released in the ID Token, name and value. }
+
+      SystemAuthenticated:
+        when: A system requests an access token with its attestation (M2M).
+        action: AuthenticateSystem
+        searchable: [client_id]
+        results: [Success, Denied, Failure]
+        reasons: { InvalidAttestation: Denied, ClientNotRegistered: Denied, AttestationRevoked: Denied, InternalError: Failure }
+        details:
+          client_id:         { type: string, required: true }
+          attestation_type:  { type: string, required: false }
+
+      OidcClientRoleDeclared:
+        when: An OIDC client is registered in the Verifier or its role changes.
+        action: ConfigureClient
+        searchable: [oidc_client_id]
+        results: [Success, Denied, Failure]
+        reasons: { PolicyDenied: Denied, InvalidConfiguration: Failure }
+        details:
+          oidc_client_id: { type: string, required: true }
+          previous_role:  { type: enum, values: [Intermediary, IAM], required: false, description: Absent on registration. }
+          new_role:       { type: enum, values: [Intermediary, IAM], required: true }
+
+  # ---------------------------------------------------------------- Third-party systems
+  third_party_access:
+    producer: any system that calls a third party
+    events:
+      ExternalSystemAccess:
+        when: "Every call to a system outside the platform: QTSP, authentic source, trusted list, mail provider, external client registry."
+        action: AccessExternalSystem
+        searchable: [system]
+        results: [Success, Denied, Failure]
+        reasons:
+          AuthenticationRejected: Denied
+          SourceNotTrusted: Denied
+          ErrorResponse: Failure
+          InvalidResponse: Failure
+          Timeout: Failure
+          Unreachable: Failure
+        details:
+          system_type:           { type: enum, values: [Qtsp, AuthenticSource, TrustedList, MailProvider, ClientRegistry, Other], required: true }
+          system:                { type: string, required: true, description: Registered name or host of the third party. }
+          operation:             { type: string, required: true, description: "Operation called, e.g. `signatures/signHash`, `credentials/authorize`." }
+          authentication_method: { type: enum, values: [None, MutualTls, OAuthClientCredentials, ApiKey, Basic], required: true }
+          duration_ms:           { type: integer, required: true }
+
+  # ---------------------------------------------------------------- Infrastructure access (out-of-band detection)
+  infrastructure_access:
+    producer: infra-detection
+    common_details:
+      access_origin:      { type: enum, values: [RuntimeDeclared, PrivilegedOrDirect], required: true, description: "RuntimeDeclared: the declared runtime identity of a service. PrivilegedOrDirect: any other identity." }
+      effective_identity: { type: string, required: true, description: "Database user or role, assumed role or technical identity." }
+      session_id:         { type: string, required: false }
+      network_origin:     { type: string, required: false, description: Network origin, in clear. }
+      detection_source:   { type: enum, values: [DatabaseEngine, CloudControlPlane], required: true }
+    events:
+      DatabaseAccess:
+        when: Each statement of a privileged or direct access; of normal operation, only writes and structure changes.
+        action: AccessData
+        searchable: [effective_identity, database_object]
+        results: [Success, Denied, Failure]
+        reasons: { DatabasePermissionMissing: Denied, DatabasePolicyDenied: Denied, DatabaseObjectNotFound: Denied, DatabaseDenialUnspecified: Denied, DatabaseError: Failure }
+        details:
+          operation:       { type: enum, values: [Read, Write, AlterStructure], required: true }
+          database_object: { type: string, required: true, description: Schema, table or view. Never row content. }
+
+      SecretAccess:
+        when: Each read, creation, rotation or deletion of a secret.
+        action: AccessSecret
+        searchable: [effective_identity, secret_id]
+        results: [Success, Denied, Failure]
+        reasons: { SecretPermissionMissing: Denied, SecretPolicyDenied: Denied, SecretNotFound: Denied, SecretDenialUnspecified: Denied, SecretStoreError: Failure }
+        details:
+          operation: { type: enum, values: [Read, Write], required: true }
+          secret_id: { type: string, required: true, description: Name of the secret, never its value. }
+
+      ConfigurationChange:
+        when: Each change of platform configuration, from console or pipeline.
+        action: ChangeConfiguration
+        searchable: [effective_identity, config_item]
+        results: [Success, Denied, Failure]
+        reasons: { ConfigChangePermissionMissing: Denied, ConfigChangePolicyDenied: Denied, ConfigChangeDenialUnspecified: Denied, ConfigChangeError: Failure }
+        details:
+          operation:   { type: enum, values: [Create, Update, Delete], required: true }
+          config_item: { type: string, required: true, description: Never its value. }
+
+      ConfigurationRead:
+        when: Each read of platform configuration.
+        action: ReadConfiguration
+        searchable: [effective_identity, config_item]
+        results: [Success, Denied, Failure]
+        reasons: { ConfigReadPermissionMissing: Denied, ConfigReadPolicyDenied: Denied, ConfigReadDenialUnspecified: Denied, ConfigReadError: Failure }
+        details:
+          config_item: { type: string, required: true }
+
+      EvidenceStoreAccess:
+        when: Each statement run directly on the audit database outside the audit API, taken from the database engine's own log. Also stored in the locked cold storage as soon as it happens, out of reach of whoever accessed.
+        action: AccessEvidence
+        results: [Success, Denied, Failure]
+        reasons: { EvidencePermissionMissing: Denied, EvidencePolicyDenied: Denied, EvidenceDenialUnspecified: Denied, EvidenceStoreError: Failure }
+        details:
+          operation: { type: enum, values: [Read, Write, Delete], required: true }
+
+      AuditAdministration:
+        when: Change of retention, permissions or scope of the audit capability, allowed or not.
+        action: AdministerAudit
+        results: [Success, Denied, Failure]
+        reasons: { AuditAdminPermissionMissing: Denied, AuditAdminPolicyDenied: Denied, AuditAdminDenialUnspecified: Denied, AuditAdminError: Failure }
+        details:
+          operation:      { type: enum, values: [RetentionChange, PermissionChange, DetectionDisabled, ScopeReduced], required: true }
+          affected_scope: { type: string, required: true, description: "Tenant or `platform`." }
+
+      AccessAuthentication:
+        when: Each authentication attempt against the database or the cloud control plane; of normal operation, its connections.
+        action: Authenticate
+        searchable: [effective_identity]
+        results: [Success, Denied, Failure]
+        reasons: { InvalidCredential: Denied, IdentityDisabled: Denied, MultiFactorRequired: Denied, AuthenticationDenialUnspecified: Denied, AuthenticationError: Failure }
+        details:
+          target:       { type: enum, values: [Database, CloudControlPlane], required: true }
+          auth_method:  { type: enum, values: [Password, Federated, Certificate, Token, Other], required: true }
+          multi_factor: { type: boolean, required: false }
+
+  # ---------------------------------------------------------------- Audit
+  audit:
+    producer: [audit-api, audit-archiver]
+    events:
+      AuditTrailQueried:
+        when: Every query of the audit API, granted or denied. Stored in the queried tenant; a platform administrator query on `all` is stored in `platform`.
+        action: QueryAuditTrail
+        results: [Success, Denied]
+        reasons: { PermissionMissing: Denied, TenantMismatch: Denied, TenantNotResolved: Denied, EventNotFound: Denied }
+        details:
+          operation:      { type: enum, values: [List, Get], required: true }
+          queried_scope:  { type: string, required: true, description: "A tenant, an organization within it, `platform` or `all`." }
+          filters:        { type: object, required: "operation == List" }
+          returned_count: { type: integer, required: "result == Success" }
+
+      AuditEventsArchived:
+        when: Each archiving run of a tenant. Stored in `platform`.
+        action: ArchiveAuditTrail
+        results: [Success, Failure]
+        reasons: { ColdStorageUnavailable: Failure, CopyMismatch: Failure }
+        details:
+          archived_tenant: { type: string, required: true, description: "Tenant or `platform`." }
+          period_from:     { type: date-time, required: true }
+          period_to:       { type: date-time, required: true }
+          event_count:     { type: integer, required: true }
+          archive_ref:     { type: string, required: "result == Success", description: Reference of the archive file and its manifest. }
+          archive_hash:    { type: hash, required: "result == Success" }
+
+      AuditEventRejected:
+        when: An event of a batch fails validation. Stored in `platform`, visible only to the platform administrator.
+        action: RejectAuditEvent
+        results: [Denied]
+        reasons: { UnknownEventType: Denied, InvalidEvent: Denied, UnknownTenant: Denied, EventIdConflict: Denied }
+        searchable: [declared_tenant, declared_event_type]
+        details:
+          declared_tenant:     { type: string, required: false, description: Tenant the rejected event declared. }
+          declared_event_type: { type: string, required: false }
+          received_event:      { type: object, required: true, description: The event exactly as received. }
+          violations:          { type: "array of object", required: false, description: "field and message of each violation." }
+
+      AuditWriteDenied:
+        when: A write to the audit API is rejected by authentication or permission. Stored in `platform`.
+        action: WriteAuditTrail
+        results: [Denied]
+        reasons: { InvalidToken: Denied, PermissionMissing: Denied }
+        details:
+          event_count: { type: integer, required: true, description: Number of events in the rejected request. }

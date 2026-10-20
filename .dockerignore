@@ -1,0 +1,11 @@
+# The image build only needs the sources and the Gradle inputs. Everything else
+# just inflates the build context — which matters most for the Testcontainers
+# image build, where the whole context is streamed to the daemon.
+.git
+.github
+.gradle
+build
+bin
+docs
+dev-tools
+*.md
