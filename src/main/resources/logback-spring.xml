@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logs of design §3.10: one JSON line per event on the console (logging.structured.format.console,
+  Logstash by default) and the same records over OTLP to the collector, as the Verifier does.
+  The service never logs event bodies, actors, details or tokens, so no masking layer is needed.
+-->
+<configuration>
+
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <springProperty name="CONSOLE_FORMAT" source="logging.structured.format.console" defaultValue="logstash"/>
+
+    <!-- A logback-spring.xml replaces Boot's own console setup, so structured output needs its encoder. -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
+            <format>${CONSOLE_FORMAT}</format>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- Exports only once OpenTelemetryLogsInitializer installs the SDK, and only when
+         management.otlp.logging.export.enabled is true. INFO and above, whatever the console level. -->
+    <appender name="OTLP" class="io.opentelemetry.instrumentation.logback.appender.v1_0.OpenTelemetryAppender">
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>INFO</level>
+        </filter>
+        <captureMdcAttributes>*</captureMdcAttributes>
+        <captureKeyValuePairAttributes>true</captureKeyValuePairAttributes>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="OTLP"/>
+    </root>
+</configuration>

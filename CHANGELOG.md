@@ -24,7 +24,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     append-only y migraciones Flyway por tenant.
   - Métricas y spans OpenTelemetry de §3.10, logs JSON.
   - Tests unitarios y de integración (Testcontainers PostgreSQL 17) de AC-01 a AC-22 en lo que toca al servicio.
-  - `./gradlew devTokens` y `docs/local-testing.md`: tokens locales y guía para probar los casos de uso a mano.
+  - `./gradlew devTokens` y `docs/local-testing.md`: tokens locales y guía para probar los 22 criterios de
+    aceptación a mano, con DBeaver, archivado, recuperación y OpenTelemetry.
+  - OpenTelemetry completo según §3.10: los logs también se exportan por OTLP (appender de logback, como el
+    Verifier) y por consola en JSON con `trace_id`, `span_id` y `service.name`; los spans llevan los atributos
+    que solo se conocen al terminar (`audit.status`, `audit.archive.result`, `audit.archive.count`). Perfil
+    `observability` en `compose.yaml` (Collector + Zipkin + métricas en formato Prometheus).
 
 ### Fixed
 

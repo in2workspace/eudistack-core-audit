@@ -3,8 +3,11 @@
 #
 #   docker compose up --build
 #
-# Ports: 8090 API (role all: internal and tenant hosts), 8091 actuator.
+# Ports: 8090 API (role all: internal and tenant hosts), 8091 actuator, 5433 PostgreSQL.
 # Writes need Host: audit.internal.localhost; queries Host: <tenant>.localhost (see README).
+#
+# OpenTelemetry (docs/local-testing.md §7): collector + Zipkin, and the API exporting everything:
+#   OTEL=true TRACING_SAMPLING_PROBABILITY=1 docker compose --profile observability up --build -d
 services:
   audit-db:
     image: postgres:17-alpine
@@ -33,6 +36,8 @@ services:
       AUDIT_DB_URL: jdbc:postgresql://audit-db:5432/audit
       AUDIT_DB_MIGRATOR_PASSWORD: migrator
       AUDIT_PROVISIONER_TENANTS: sandbox,red-logistica
+      OTLP_METRICS_ENABLED: ${OTEL:-false}
+      OTLP_LOGS_ENABLED: ${OTEL:-false}
     restart: "no"
 
   audit-api:
@@ -57,11 +62,33 @@ services:
       AUDIT_QUERY_CURSOR_SECRET: local-cursor-secret-not-for-production-0001
       AUDIT_ARCHIVE_STORAGE: filesystem
       AUDIT_ARCHIVE_FILESYSTEMROOT: /tmp/cold-storage
-      OTLP_METRICS_ENABLED: "false"
-      TRACING_SAMPLING_PROBABILITY: "0"
+      # Off unless OTEL=true (and TRACING_SAMPLING_PROBABILITY=1 to sample every trace; production: 0.1).
+      OTLP_METRICS_ENABLED: ${OTEL:-false}
+      OTLP_LOGS_ENABLED: ${OTEL:-false}
+      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0}
+      MANAGEMENT_OTLP_METRICS_EXPORT_STEP: 10s
     ports:
       - "8090:8080"
       - "8091:8081"
+
+  # --- Optional: --profile observability ---------------------------------------------------------
+  otel-collector:
+    profiles: [observability]
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    command: ["--config=/etc/otelcol/collector.yaml"]
+    volumes:
+      - ./dev-tools/otel/collector.yaml:/etc/otelcol/collector.yaml:ro
+    ports:
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # metrics in Prometheus format
+    depends_on:
+      - zipkin
+
+  zipkin:
+    profiles: [observability]
+    image: openzipkin/zipkin:3
+    ports:
+      - "9411:9411"   # traces UI
 
 volumes:
   audit-db:

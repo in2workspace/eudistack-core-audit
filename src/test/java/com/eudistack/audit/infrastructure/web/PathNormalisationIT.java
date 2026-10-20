@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "audit.archive.storage=filesystem",
         "audit.archive.filesystem-root=build/it-cold-storage",
         "management.otlp.metrics.export.enabled=false",
+        "management.otlp.logging.export.enabled=false",
         "management.otlp.tracing.endpoint=http://localhost:1/v1/traces",
         "management.server.port=-1"})
 class PathNormalisationIT {

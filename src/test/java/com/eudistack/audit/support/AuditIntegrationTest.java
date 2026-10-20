@@ -37,6 +37,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
         "audit.archive.storage=filesystem",
         "audit.archive.filesystem-root=build/it-cold-storage",
         "management.otlp.metrics.export.enabled=false",
+        "management.otlp.logging.export.enabled=false",
         "management.tracing.sampling.probability=1.0",
         "management.otlp.tracing.endpoint=http://localhost:1/v1/traces",
         "management.server.port=-1"})

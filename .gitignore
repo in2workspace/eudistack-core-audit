@@ -51,3 +51,6 @@ src/main/resources/credentials/profiles/*.json
 
 ### Local tokens (./gradlew devTokens) ###
 dev-tools/local-tokens/
+
+### Scratch request bodies of docs/local-testing.md ###
+/*.json

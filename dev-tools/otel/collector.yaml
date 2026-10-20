@@ -1,0 +1,40 @@
+# LOCAL DEVELOPMENT ONLY. OpenTelemetry Collector of the `observability` profile of compose.yaml,
+# the same pipelines as eudistack-platform-dev/local-env/otel-collector-config.yaml without OpenObserve:
+#   traces  → Zipkin (http://localhost:9411)
+#   metrics → Prometheus format (http://localhost:8889/metrics)
+#   logs    → collector output (docker compose logs otel-collector)
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+
+exporters:
+  zipkin:
+    endpoint: http://zipkin:9411/api/v2/spans
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
+  debug:
+    verbosity: detailed
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [zipkin]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]

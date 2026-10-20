@@ -9,12 +9,14 @@ import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.util.DefaultResourceRetriever;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.ObservationRegistry;
+import io.opentelemetry.api.OpenTelemetry;
 import com.eudistack.audit.domain.catalogue.CatalogueValidator;
 import com.eudistack.audit.domain.policy.SelfEventFactory;
 import com.eudistack.audit.domain.port.out.AuditTelemetryPort;
 import com.eudistack.audit.domain.port.out.CatalogueResolverPort;
 import com.eudistack.audit.infrastructure.catalogue.ClasspathCatalogue;
 import com.eudistack.audit.infrastructure.observability.MicrometerAuditTelemetry;
+import com.eudistack.audit.infrastructure.observability.OpenTelemetryLogsInitializer;
 import com.eudistack.audit.infrastructure.persistence.repository.EventSql;
 import com.eudistack.audit.infrastructure.persistence.repository.TenantDirectoryJdbc;
 import com.eudistack.audit.infrastructure.persistence.tenant.AuditDataSourceConfiguration;
@@ -64,6 +66,14 @@ public class CoreConfiguration {
     @Bean
     public AuditTelemetryPort auditTelemetry(MeterRegistry meters, ObjectProvider<ObservationRegistry> observations) {
         return new MicrometerAuditTelemetry(meters, observations.getIfAvailable(() -> ObservationRegistry.NOOP));
+    }
+
+    /**
+     * Log records over OTLP (design §3.10), when {@code management.otlp.logging.export.enabled} is on.
+     */
+    @Bean
+    public OpenTelemetryLogsInitializer openTelemetryLogsInitializer(ObjectProvider<OpenTelemetry> openTelemetry) {
+        return new OpenTelemetryLogsInitializer(openTelemetry.getIfAvailable(OpenTelemetry::noop));
     }
 
     @Bean

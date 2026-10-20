@@ -141,7 +141,8 @@ public final class RecordEventsWorkflow implements RecordEventsPort {
         for (Prepared item : prepared) {
             outcomes.add(switch (item) {
                 case ToStore store -> telemetry.span("audit.event.persist", persistAttributes(store),
-                        () -> store(writer, store, traceId));
+                        () -> store(writer, store, traceId),
+                        outcome -> Map.of("audit.status", outcome.status().wireValue()));
                 case Rejected rejected -> reject(writer, rejected.received(), rejected.reason(),
                         rejected.violations(), traceId);
             });

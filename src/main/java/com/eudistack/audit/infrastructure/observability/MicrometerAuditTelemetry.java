@@ -11,6 +11,7 @@ import com.eudistack.audit.domain.port.out.AuditTelemetryPort;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -38,6 +39,24 @@ public final class MicrometerAuditTelemetry implements AuditTelemetryPort {
         Observation observation = Observation.createNotStarted(name, observations);
         attributes.forEach(observation::highCardinalityKeyValue);
         return observation.observe(work);
+    }
+
+    @Override
+    public <T> T span(String name, Map<String, String> attributes, Supplier<T> work,
+                      Function<T, Map<String, String>> resultAttributes) {
+        Observation observation = Observation.createNotStarted(name, observations);
+        attributes.forEach(observation::highCardinalityKeyValue);
+        observation.start();
+        try (Observation.Scope scope = observation.openScope()) {
+            T result = work.get();
+            resultAttributes.apply(result).forEach(observation::highCardinalityKeyValue);
+            return result;
+        } catch (RuntimeException e) {
+            observation.error(e);
+            throw e;
+        } finally {
+            observation.stop();
+        }
     }
 
     @Override

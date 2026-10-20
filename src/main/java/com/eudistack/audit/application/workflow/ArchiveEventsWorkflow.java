@@ -99,7 +99,9 @@ public final class ArchiveEventsWorkflow {
         }
         try {
             return telemetry.span("audit.archive.tenant", Map.of("audit.tenant", tenant.tenantId()),
-                    () -> archiveLocked(tenant, day, runId));
+                    () -> archiveLocked(tenant, day, runId),
+                    outcome -> Map.of("audit.archive.result", outcome.status() == Status.SUCCESS ? "success" : "failure",
+                            "audit.archive.count", Integer.toString(outcome.eventCount())));
         } finally {
             repository.unlock(tenant.tenantId(), day, runId);
         }

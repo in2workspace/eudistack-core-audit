@@ -101,6 +101,7 @@ class OpenApiContractIT extends AuditIntegrationTest {
                 mvc.perform(query(RED_HOST, "/audit/api/v1/events?limit=9999", token)).andReturn(),
                 mvc.perform(query(RED_HOST, "/audit/api/v1/events/" + UUID.randomUUID(), token)).andReturn(),
                 mvc.perform(query(RED_HOST, "/audit/api/v1/events", null)).andReturn(),
+                mvc.perform(query(SANDBOX_HOST, "/audit/api/v1/events", token)).andReturn(),
                 mvc.perform(query(RED_HOST, "/audit/api/v1/events?from=2001-01-01T00:00:00Z&to=2001-01-02T00:00:00Z",
                         token)).andReturn(),
                 mvc.perform(write(TestEvents.MAPPER.createObjectNode(), TestTokens.writer())).andReturn()};

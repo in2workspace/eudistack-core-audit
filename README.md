@@ -40,6 +40,8 @@ Una sola imagen; `AUDIT_ROLE` decide qué arranca:
 | `AUDIT_ARCHIVE_BUCKET`, `AWS_REGION`, `AUDIT_ARCHIVE_ENDPOINT` | Bucket S3 con Object Lock (Compliance) y SSE-KMS |
 | `AUDIT_PROVISIONER_TENANTS` | Tenants a provisionar (`sandbox,red-logistica`) |
 | `audit.query.rate-limit*`, `audit.query.rate-limit-overrides.<org>.*` | Límites de FR-18 y ampliaciones por organización |
+| `OTEL_EXPORTER_OTLP_{TRACES,METRICS,LOGS}_ENDPOINT` | Collector OpenTelemetry (OTLP HTTP; por defecto `http://otel-collector:4318/v1/…`) |
+| `TRACING_SAMPLING_PROBABILITY`, `OTLP_METRICS_ENABLED`, `OTLP_LOGS_ENABLED` | Muestreo de trazas (0,1) y exportación de métricas y logs |
 
 Los roles de base de datos, la base `audit`, el bucket y sus políticas los crea el IaC de plataforma; para local,
 [`dev-tools/db/init-roles.sql`](dev-tools/db/init-roles.sql).
@@ -53,6 +55,7 @@ Los roles de base de datos, la base `audit`, el bucket y sus políticas los crea
 | Solo integración (Testcontainers, requiere Docker) | `./gradlew integrationTest` |
 | Stack local (PostgreSQL + provisioner + API `all`) | `docker compose up --build` |
 | Tokens locales para probar a mano (sin Verifier) | `./gradlew devTokens` |
+| Stack local con OpenTelemetry (Collector + Zipkin) | `OTEL=true TRACING_SAMPLING_PROBABILITY=1 docker compose --profile observability up --build` |
 
 En local la API escucha en `localhost:8090` (actuator en `8091`). La cara de escritura responde con
 `Host: audit.internal.localhost` y la de consulta con `Host: <tenant>.localhost`, p. ej.:
@@ -62,7 +65,7 @@ curl -H "Host: sandbox.localhost" -H "Authorization: Bearer $TOKEN" \
      "http://localhost:8090/audit/api/v1/events?event_type=IssuanceCompleted"
 ```
 
-Para recorrer todos los casos de uso a mano, con tokens locales de cada perfil, sigue
-[`docs/local-testing.md`](docs/local-testing.md).
+Para recorrer todos los criterios de aceptación a mano (API, DBeaver en `localhost:5433`, archivado,
+OpenTelemetry), con tokens locales de cada perfil, sigue [`docs/local-testing.md`](docs/local-testing.md).
 
 El despliegue (ECS, ingress, IaC) es responsabilidad de arquitectura y no forma parte de este repositorio.

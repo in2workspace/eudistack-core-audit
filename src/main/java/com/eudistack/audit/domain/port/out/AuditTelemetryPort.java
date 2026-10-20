@@ -1,6 +1,7 @@
 package com.eudistack.audit.domain.port.out;
 
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -12,6 +13,15 @@ public interface AuditTelemetryPort {
      * Runs the work inside a span with the given attributes (high cardinality: spans only, never labels).
      */
     <T> T span(String name, Map<String, String> attributes, Supplier<T> work);
+
+    /**
+     * As {@link #span(String, Map, Supplier)}, adding the attributes only known once the work is done
+     * ({@code audit.status}, {@code audit.archive.result}, …).
+     */
+    default <T> T span(String name, Map<String, String> attributes, Supplier<T> work,
+                       Function<T, Map<String, String>> resultAttributes) {
+        return span(name, attributes, work);
+    }
 
     void batchRecorded(String outcome, long nanos);
 

@@ -40,11 +40,22 @@ management:
         enabled: ${OTLP_METRICS_ENABLED:true}
         url: ${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT:http://otel-collector:4318/v1/metrics}
         step: 30s
+    logging:
+      endpoint: ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:http://otel-collector:4318/v1/logs}
+      export:
+        enabled: ${OTLP_LOGS_ENABLED:true}
 
 logging:
   structured:
     format:
       console: ${LOG_FORMAT:logstash}
+    # Field names of design §3.10: trace_id, span_id (MDC of Micrometer Tracing) and service.name.
+    json:
+      rename:
+        traceId: trace_id
+        spanId: span_id
+      add:
+        "[service.name]": ${spring.application.name}
   level:
     root: INFO
     com.eudistack.audit: ${LOG_LEVEL:INFO}

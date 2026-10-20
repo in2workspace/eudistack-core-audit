@@ -61,6 +61,7 @@ comprueba.
 | D-14 | **Recuperación de un periodo** (AC-22) como tarea one-shot del rol `archiver` (`audit.recover.*`, token del administrador). Deja `AuditTrailQueried` en el tenant recuperado, por lo que `audit_archiver` tiene `INSERT` en las tablas de tenant, limitado por el trigger a `AuditTrailQueried`/`AuditEventsArchived`. | Diseño §3.4.6, ampliación mínima de los GRANT de §3.4.2. |
 | D-15 | Un día archivado que recibe eventos tarde genera una **parte nueva** (`events-N.jsonl.gz` + `manifest-N.json`): un objeto bloqueado nunca se reescribe. | Completa la §3.4.6. |
 | D-16 | `audit.security.audience` **configurable y desactivado por defecto** hasta que el Verifier emita una audiencia para este servicio (PO-12). Con valor, se exige (`TokenAudienceIT`). | Pregunta 3. |
+| D-17 | **OpenTelemetry (§3.10)**: trazas y métricas por OTLP HTTP con Micrometer; los logs, en JSON Logstash por consola (`trace_id`, `span_id`, `service.name`) y además por OTLP con el appender de logback, como el Verifier, para que lleguen al Collector y a OpenObserve sin agente. Sin capa de enmascarado: el servicio no registra cuerpos, actores, detalles ni tokens. | Alineado con el Verifier y el `local-env` de platform-dev. |
 
 ## 3. Cobertura de los criterios de aceptación
 
@@ -88,6 +89,7 @@ de base de datos y su cifrado (IaC).
 | H-2 | El OpenAPI no declara las respuestas **405** (que exige AC-08 y la §3.9) ni la cabecera `Cache-Control: no-store` (PO-13). | Añadirlas al contrato. |
 | H-3 | `GET /api/v1/events/{event_id}` no declara `tenant`: el administrador no puede elegir ámbito. Se acepta `tenant` también ahí (mismo significado que en el listado). | Añadir el parámetro al contrato. |
 | H-4 | El ejemplo del OpenAPI usa `event_version: 2.0.0`, que no está publicada. | Ver D-5. |
+| H-5 | `listEvents` y `getEvent` no declaran el **503** `service_unavailable` con `Retry-After`, que la tabla de errores de §3.9 del diseño sí prevé (pool, base o JWKS no disponibles, o el `AuditTrailQueried` no se pudo guardar). | Añadir el 503 a las dos operaciones de consulta. |
 | PO-12 | El Verifier no emite `aud` para este servicio. | D-16. |
 | PO-5, PO-8, PO-9, PO-10, PO-16 | Siguen abiertos en el diseño (infraestructura/PM). | Sin cambio en el código. |
 
