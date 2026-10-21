@@ -255,13 +255,22 @@ docker compose exec -T audit-api java -jar /app/audit.jar --audit.role=archiver 
   --audit.recover.from=$DAY --audit.recover.to=$DAY --audit.recover.output=/tmp/recovered.json
 docker compose exec -T audit-api cat /tmp/recovered.json
 psql_audit "SELECT actor->>'id', details->>'queried_scope', details->>'returned_count' FROM red_logistica.audit_event WHERE event_type='AuditTrailQueried' ORDER BY recorded_at DESC LIMIT 1;"
+
+# FR-17: quien no es administrador no recupera nada, pero queda un AuditTrailQueried Denied (PermissionMissing)
+docker compose exec -T audit-api java -jar /app/audit.jar --audit.role=archiver --audit.recover.enabled=true   --audit.recover.token="$(cat $T/auditor-red-logistica.jwt)" --audit.recover.tenant=red-logistica   --audit.recover.from=$DAY --audit.recover.to=$DAY --audit.recover.output=/tmp/recovered.json   # "Recovery failed"
+psql_audit "SELECT actor->>'id', result, reason FROM red_logistica.audit_event WHERE event_type='AuditTrailQueried' AND details->'filters'->>'source'='archive' ORDER BY recorded_at DESC LIMIT 1;"
 ```
+
+Un tenant que no existe deja el `Denied` (`TenantNotResolved`) en `platform`. Un periodo mal formado no deja
+rastro, igual que un 400 de la API.
 
 AC-21 (nadie puede borrar ni cambiar lo archivado en siete años; a los siete años y un día ya no existe) depende
 del bloqueo Compliance de S3 y de la regla de ciclo de vida del bucket, que crea el IaC. En local el
 almacenamiento es un directorio sin bloqueo real. El servicio escribe cada objeto con `COMPLIANCE` y su
 fecha de retención, y comprueba ese bloqueo antes de borrar nada de la base. `ArchiveEventsWorkflowIT.ac21_*`
-lo prueba con un almacén que se comporta como Object Lock. En AWS se comprueba en la consola del bucket:
+lo prueba con un almacén que se comporta como Object Lock, y `ColdStorageS3IT` prueba el adaptador real contra
+LocalStack (bloqueo Compliance con su fecha, 412 al reescribir una clave, 403 al borrar una versión bloqueada).
+La caducidad a los siete años es solo del IaC. En AWS se comprueba en la consola del bucket:
 *Object Lock* → modo *Compliance*.
 
 ## 7. Contrato HTTP

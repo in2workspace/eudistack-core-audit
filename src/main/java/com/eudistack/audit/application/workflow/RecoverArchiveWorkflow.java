@@ -10,6 +10,7 @@ import com.eudistack.audit.domain.model.Caller;
 import com.eudistack.audit.domain.model.CursorPosition;
 import com.eudistack.audit.domain.model.TenantRef;
 import com.eudistack.audit.domain.policy.AccessPolicy;
+import com.eudistack.audit.domain.policy.ScopePolicy;
 import com.eudistack.audit.domain.policy.SelfEventFactory;
 import com.eudistack.audit.domain.port.out.ColdStoragePort;
 import com.eudistack.audit.domain.port.out.SelfAuditPort;
@@ -28,9 +29,13 @@ import java.util.Optional;
  *
  * <p>Every manifest of the period is re-verified against its events object before anything is
  * delivered; what is delivered is exactly what was stored. The recovery leaves an
- * {@code AuditTrailQueried} in the recovered tenant.
+ * {@code AuditTrailQueried} in the recovered tenant; a refused one leaves it {@code Denied} (FR-17), in
+ * the recovered tenant or, when the tenant does not resolve, in {@code platform}. As on the API, a
+ * malformed period leaves none (AD-8).
  */
 public final class RecoverArchiveWorkflow {
+
+    private static final System.Logger LOG = System.getLogger(RecoverArchiveWorkflow.class.getName());
 
     static final int MAX_DAYS = 366;
 
@@ -55,16 +60,22 @@ public final class RecoverArchiveWorkflow {
      * @param to   last UTC day, inclusive
      */
     public List<AuditEvent> recover(Caller caller, String tenantId, LocalDate from, LocalDate to, String traceId) {
-        if (!AccessPolicy.isPlatformAdministrator(caller)) {
-            throw new InsufficientPermissionException("Recovering an archived period requires System · Administration");
-        }
         if (to.isBefore(from) || ChronoUnit.DAYS.between(from, to) >= MAX_DAYS) {
             throw new BadRequestException("period", "The period must be 1 to " + MAX_DAYS + " days");
         }
+        ObjectNode filters = JsonNodeFactory.instance.objectNode()
+                .put("source", "archive").put("from", from.toString()).put("to", to.toString());
         String normalised = TenantRef.normalise(tenantId);
         Optional<TenantRef> tenant = TenantRef.PLATFORM_ID.equals(normalised)
                 ? Optional.of(TenantRef.PLATFORM) : directory.find(normalised);
+        if (!AccessPolicy.isPlatformAdministrator(caller)) {
+            recordDenial(caller, tenant.orElse(TenantRef.PLATFORM), normalised, filters,
+                    ScopePolicy.DenialReason.PERMISSION_MISSING, traceId);
+            throw new InsufficientPermissionException("Recovering an archived period requires System · Administration");
+        }
         if (tenant.isEmpty()) {
+            recordDenial(caller, TenantRef.PLATFORM, normalised, filters, ScopePolicy.DenialReason.TENANT_NOT_RESOLVED,
+                    traceId);
             throw new TenantNotResolvedException("Unknown tenant: " + tenantId);
         }
         List<AuditEvent> events = new ArrayList<>();
@@ -77,10 +88,19 @@ public final class RecoverArchiveWorkflow {
             }
         }
         events.sort(Comparator.comparing(e -> new CursorPosition(e.occurredAt(), e.eventId(), null)));
-        ObjectNode filters = JsonNodeFactory.instance.objectNode()
-                .put("source", "archive").put("from", from.toString()).put("to", to.toString());
         selfAudit.record(tenant.get(), selfEvents.trailQueried(caller, tenant.get(), SelfEventFactory.OPERATION_LIST,
                 tenant.get().tenantId(), filters, null, events.size(), traceId));
         return events;
+    }
+
+    /** Best effort, like the API: the refusal never depends on the store. */
+    private void recordDenial(Caller caller, TenantRef target, String label, ObjectNode filters,
+                              ScopePolicy.DenialReason reason, String traceId) {
+        try {
+            selfAudit.record(target, selfEvents.trailQueried(caller, target, SelfEventFactory.OPERATION_LIST, label,
+                    filters, reason.catalogueReason(), null, traceId));
+        } catch (RuntimeException e) {
+            LOG.log(System.Logger.Level.ERROR, "Denied AuditTrailQueried of a recovery could not be stored", e);
+        }
     }
 }

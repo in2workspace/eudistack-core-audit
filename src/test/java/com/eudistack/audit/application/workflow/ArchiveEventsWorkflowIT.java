@@ -165,8 +165,7 @@ class ArchiveEventsWorkflowIT {
         AuditEvent second = plant(correlation, Duration.ofDays(99).minusMinutes(1));
         workflow.run();
         LocalDate day = LocalDate.ofInstant(first.recordedAt(), ZoneOffset.UTC);
-        Caller admin = new Caller("platform-admin", ActorKind.PERSON, "Admin", null, "VATES-EUDISTACK", "platform",
-                null, List.of(new Power("organization", "EUDISTACK", "System", List.of("Administration"))));
+        Caller admin = admin();
         String trace = "recover-" + UUID.randomUUID();
 
         List<AuditEvent> recovered = recovery.recover(admin, "red-logistica", day.minusDays(1), day.plusDays(1), trace);
@@ -179,12 +178,44 @@ class ArchiveEventsWorkflowIT {
     }
 
     @Test
-    void ac22_recovery_requiresTheAdministrator() {
+    void ac22_recovery_requiresTheAdministrator_andLeavesDeniedAuditTrailQueried() {
         Caller auditor = new Caller("auditor", ActorKind.PERSON, null, null, "VATES-B1", "red-logistica", null,
                 List.of(new Power("organization", "RED-LOGISTICA", "Audit", List.of("Read"))));
+        String trace = "recover-" + UUID.randomUUID();
 
-        assertThatThrownBy(() -> recovery.recover(auditor, "red-logistica", LocalDate.now(), LocalDate.now(), "t"))
+        assertThatThrownBy(() -> recovery.recover(auditor, "red-logistica", LocalDate.now(), LocalDate.now(), trace))
                 .isInstanceOf(com.eudistack.audit.domain.exception.InsufficientPermissionException.class);
+        assertThat(deniedTrail("red_logistica", trace)).containsExactly("Denied/PermissionMissing/red-logistica");
+    }
+
+    @Test
+    void ac22_recovery_ofAnUnknownTenant_leavesDeniedAuditTrailQueriedInPlatform() {
+        String trace = "recover-" + UUID.randomUUID();
+
+        assertThatThrownBy(() -> recovery.recover(admin(), "nobody", LocalDate.now(), LocalDate.now(), trace))
+                .isInstanceOf(com.eudistack.audit.domain.exception.TenantNotResolvedException.class);
+        assertThat(deniedTrail("platform", trace)).containsExactly("Denied/TenantNotResolved/nobody");
+    }
+
+    @Test
+    void ac22_recovery_withAMalformedPeriod_leavesNoTrail() {
+        String trace = "recover-" + UUID.randomUUID();
+
+        assertThatThrownBy(() -> recovery.recover(admin(), "red-logistica", LocalDate.now(),
+                LocalDate.now().minusDays(1), trace))
+                .isInstanceOf(com.eudistack.audit.domain.exception.BadRequestException.class);
+        assertThat(deniedTrail("red_logistica", trace)).isEmpty();
+    }
+
+    private static Caller admin() {
+        return new Caller("platform-admin", ActorKind.PERSON, "Admin", null, "VATES-EUDISTACK", "platform",
+                null, List.of(new Power("organization", "EUDISTACK", "System", List.of("Administration"))));
+    }
+
+    private static List<String> deniedTrail(String schema, String trace) {
+        return AuditDatabase.superuser().sql("SELECT result || '/' || reason || '/' || (details->>'queried_scope') "
+                        + "FROM " + schema + ".audit_event WHERE event_type = 'AuditTrailQueried' AND correlation_id = ?")
+                .param(trace).query(String.class).list();
     }
 
     @Test

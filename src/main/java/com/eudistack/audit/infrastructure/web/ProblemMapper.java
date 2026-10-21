@@ -69,7 +69,7 @@ public final class ProblemMapper {
                     Map.of(HttpHeaders.RETRY_AFTER, Long.toString(e.retryAfterSeconds())));
             case ServiceUnavailableException e -> new Mapped(problem("service_unavailable",
                     "The audit store is not available", 503,
-                    "Nothing was stored. Retry after Retry-After", instance, List.of()),
+                    "The request had no effect. Retry after Retry-After", instance, List.of()),
                     Map.of(HttpHeaders.RETRY_AFTER, Long.toString(UNAVAILABLE_RETRY_AFTER)));
         };
     }
