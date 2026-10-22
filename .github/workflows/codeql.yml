@@ -1,0 +1,13 @@
+name: codeql
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    uses: in2workspace/eudistack-devops-workflows/.github/workflows/common-codeql-java.yml@12ed6fa9090ebd4564c6541b67111ed4466a61b1
