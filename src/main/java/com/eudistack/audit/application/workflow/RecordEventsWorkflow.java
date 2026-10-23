@@ -24,9 +24,11 @@ import com.eudistack.audit.domain.port.out.SelfAuditPort;
 import com.eudistack.audit.domain.port.out.TenantDirectoryPort;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -67,7 +69,7 @@ public final class RecordEventsWorkflow implements RecordEventsPort {
     }
 
     @Override
-    public List<EventOutcome> record(Caller caller, JsonNode body, String traceId) {
+    public List<EventOutcome> recordBatch(Caller caller, JsonNode body, String traceId) {
         long start = System.nanoTime();
         if (!AccessPolicy.canWrite(caller)) {
             telemetry.writeDenied("permission");
@@ -107,7 +109,7 @@ public final class RecordEventsWorkflow implements RecordEventsPort {
 
     private void denyWrite(Caller caller, String reason, int eventCount, String traceId) {
         try {
-            selfAudit.record(TenantRef.PLATFORM, selfEvents.writeDenied(caller, reason, eventCount, traceId));
+            selfAudit.storeEvent(TenantRef.PLATFORM, selfEvents.writeDenied(caller, reason, eventCount, traceId));
         } catch (RuntimeException e) {
             // FR-11 only while the store answers: the 401/403 is returned anyway.
             LOG.log(System.Logger.Level.ERROR, "AuditWriteDenied could not be stored", e);
@@ -120,7 +122,7 @@ public final class RecordEventsWorkflow implements RecordEventsPort {
                 () -> validator.validate(received));
         telemetry.catalogueValidated(result instanceof ValidationResult.Valid, System.nanoTime() - start);
         return switch (result) {
-            case ValidationResult.Invalid invalid -> new Rejected(received, invalid.reason(), invalid.violations());
+            case ValidationResult.Invalid(var reason, var violations) -> new Rejected(received, reason, violations);
             case ValidationResult.Valid valid -> resolveTenant(valid);
         };
     }
@@ -143,8 +145,8 @@ public final class RecordEventsWorkflow implements RecordEventsPort {
                 case ToStore store -> telemetry.span("audit.event.persist", persistAttributes(store),
                         () -> store(writer, store, traceId),
                         outcome -> Map.of("audit.status", outcome.status().wireValue()));
-                case Rejected rejected -> reject(writer, rejected.received(), rejected.reason(),
-                        rejected.violations(), traceId);
+                case Rejected(var received, var reason, var violations) ->
+                        reject(writer, received, reason, violations, traceId);
             });
         }
         return outcomes;
@@ -200,8 +202,34 @@ public final class RecordEventsWorkflow implements RecordEventsPort {
     private sealed interface Prepared permits ToStore, Rejected {
     }
 
-    private record ToStore(JsonNode received, AuditEvent event, TenantRef tenant, byte[] payloadHash)
+    record ToStore(JsonNode received, AuditEvent event, TenantRef tenant, byte[] payloadHash)
             implements Prepared {
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof ToStore(JsonNode otherReceived, AuditEvent otherEvent, TenantRef otherTenant,
+                    byte[] otherPayloadHash))) {
+                return false;
+            }
+            return Objects.equals(received, otherReceived)
+                    && Objects.equals(event, otherEvent)
+                    && Objects.equals(tenant, otherTenant)
+                    && Arrays.equals(payloadHash, otherPayloadHash);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(received, event, tenant, Arrays.hashCode(payloadHash));
+        }
+
+        @Override
+        public String toString() {
+            return "ToStore[received=" + received + ", event=" + event + ", tenant=" + tenant
+                    + ", payloadHash=" + Arrays.toString(payloadHash) + "]";
+        }
     }
 
     private record Rejected(JsonNode received, RejectionReason reason, List<Violation> violations)

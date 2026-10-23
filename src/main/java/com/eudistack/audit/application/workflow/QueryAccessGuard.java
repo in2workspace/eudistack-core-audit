@@ -44,8 +44,8 @@ public final class QueryAccessGuard {
         Optional<TenantRef> host = context.hostTenantId() == null ? Optional.empty()
                 : directory.find(TenantRef.normalise(context.hostTenantId()));
         ScopePolicy.Decision decision = ScopePolicy.resolve(context.caller(), host, tenantParam, directory::find);
-        if (decision instanceof ScopePolicy.Granted granted) {
-            return granted.scope();
+        if (decision instanceof ScopePolicy.Granted(ReadScope scope)) {
+            return scope;
         }
         ScopePolicy.Denied denied = (ScopePolicy.Denied) decision;
         recordDenial(context, denied.auditTarget(), operation, denied.label(), filters,
@@ -61,8 +61,9 @@ public final class QueryAccessGuard {
     public void recordGranted(QueryContext context, ReadScope scope, String operation, ObjectNode filters,
                               int returnedCount) {
         try {
-            selfAudit.record(scope.auditTarget(), selfEvents.trailQueried(context.caller(), scope.auditTarget(),
-                    operation, scope.label(), filters, null, returnedCount, context.traceId()));
+            selfAudit.storeEvent(scope.auditTarget(), selfEvents.trailQueried(new SelfEventFactory.TrailQuery(
+                    context.caller(), scope.auditTarget(), operation, scope.label(), filters, null, returnedCount,
+                    context.traceId())));
         } catch (RuntimeException e) {
             throw new ServiceUnavailableException("The query could not be recorded", e);
         }
@@ -71,8 +72,8 @@ public final class QueryAccessGuard {
     public void recordDenial(QueryContext context, TenantRef target, String operation, String label,
                              ObjectNode filters, String reason) {
         try {
-            selfAudit.record(target, selfEvents.trailQueried(context.caller(), target, operation, label, filters,
-                    reason, null, context.traceId()));
+            selfAudit.storeEvent(target, selfEvents.trailQueried(new SelfEventFactory.TrailQuery(
+                    context.caller(), target, operation, label, filters, reason, null, context.traceId())));
         } catch (RuntimeException e) {
             LOG.log(System.Logger.Level.ERROR, "Denied AuditTrailQueried could not be stored", e);
         }

@@ -1,5 +1,6 @@
 package com.eudistack.audit.application.workflow;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.eudistack.audit.domain.catalogue.CatalogueValidator;
 import com.eudistack.audit.domain.exception.BadRequestException;
@@ -11,6 +12,7 @@ import com.eudistack.audit.domain.model.Caller;
 import com.eudistack.audit.domain.model.EventOutcome;
 import com.eudistack.audit.domain.model.Power;
 import com.eudistack.audit.domain.model.RecordStatus;
+import com.eudistack.audit.domain.model.TenantRef;
 import com.eudistack.audit.domain.model.RejectionReason;
 import com.eudistack.audit.domain.policy.SelfEventFactory;
 import com.eudistack.audit.domain.port.out.AuditTelemetryPort;
@@ -41,7 +43,7 @@ class RecordEventsWorkflowTest {
 
     @Test
     void record_validEventsOfTwoTenants_eachInItsSchema() {
-        List<EventOutcome> outcomes = workflow.record(WRITER,
+        List<EventOutcome> outcomes = workflow.recordBatch(WRITER,
                 TestEvents.batch(event("red-logistica"), event("SANDBOX")), "trace");
 
         assertThat(outcomes).extracting(EventOutcome::status).containsOnly(RecordStatus.ACCEPTED);
@@ -57,7 +59,7 @@ class RecordEventsWorkflowTest {
         ((ObjectNode) undeclaredField.get("details")).put("holder_phone", "600");
         ObjectNode valid = event("red-logistica");
 
-        List<EventOutcome> outcomes = workflow.record(WRITER, TestEvents.batch(unknownType, undeclaredField, valid), "t");
+        List<EventOutcome> outcomes = workflow.recordBatch(WRITER, TestEvents.batch(unknownType, undeclaredField, valid), "t");
 
         assertThat(outcomes).extracting(EventOutcome::reason).containsExactly(RejectionReason.UNKNOWN_EVENT_TYPE,
                 RejectionReason.INVALID_EVENT, null);
@@ -69,7 +71,7 @@ class RecordEventsWorkflowTest {
 
     @Test
     void record_unknownTenant_rejected_platformEventStored() {
-        List<EventOutcome> outcomes = workflow.record(WRITER,
+        List<EventOutcome> outcomes = workflow.recordBatch(WRITER,
                 TestEvents.batch(event("nowhere"), event("platform")), "t");
 
         assertThat(outcomes.get(0).reason()).isEqualTo(RejectionReason.UNKNOWN_TENANT);
@@ -81,10 +83,10 @@ class RecordEventsWorkflowTest {
     @Test
     void record_resentIdentical_isDuplicate_otherContent_isConflict() {
         ObjectNode original = event("red-logistica");
-        workflow.record(WRITER, TestEvents.batch(original), "t");
+        workflow.recordBatch(WRITER, TestEvents.batch(original), "t");
 
         ObjectNode changed = original.deepCopy().put("resource", "issuance:other");
-        List<EventOutcome> outcomes = workflow.record(WRITER, TestEvents.batch(original.deepCopy(), changed), "t");
+        List<EventOutcome> outcomes = workflow.recordBatch(WRITER, TestEvents.batch(original.deepCopy(), changed), "t");
 
         assertThat(outcomes).extracting(EventOutcome::status).containsExactly(RecordStatus.DUPLICATE, RecordStatus.REJECTED);
         assertThat(outcomes.get(1).reason()).isEqualTo(RejectionReason.EVENT_ID_CONFLICT);
@@ -95,8 +97,8 @@ class RecordEventsWorkflowTest {
     void record_resentInvalidBatch_leavesOneRejectionOnly() {
         ObjectNode invalid = event("nowhere");
 
-        workflow.record(WRITER, TestEvents.batch(invalid), "t");
-        workflow.record(WRITER, TestEvents.batch(invalid.deepCopy()), "t");
+        workflow.recordBatch(WRITER, TestEvents.batch(invalid), "t");
+        workflow.recordBatch(WRITER, TestEvents.batch(invalid.deepCopy()), "t");
 
         assertThat(store.events("platform")).hasSize(1);
     }
@@ -106,7 +108,8 @@ class RecordEventsWorkflowTest {
         Caller reader = new Caller("auditor", ActorKind.PERSON, null, null, "VATES-B1", "red-logistica", null,
                 List.of(new Power("organization", "RED-LOGISTICA", "Audit", List.of("Read"))));
 
-        assertThatThrownBy(() -> workflow.record(reader, TestEvents.batch(event("red-logistica")), "t"))
+        JsonNode body = TestEvents.batch(event("red-logistica"));
+        assertThatThrownBy(() -> workflow.recordBatch(reader, body, "t"))
                 .isInstanceOf(InsufficientPermissionException.class);
         assertThat(store.events("platform")).singleElement().satisfies(e -> {
             assertThat(e.eventType()).isEqualTo("AuditWriteDenied");
@@ -123,9 +126,10 @@ class RecordEventsWorkflowTest {
             events.add(event("red-logistica"));
         }
 
-        assertThatThrownBy(() -> workflow.record(WRITER, tooMany, "t")).isInstanceOf(BadRequestException.class);
-        assertThatThrownBy(() -> workflow.record(WRITER, null, "t")).isInstanceOf(BadRequestException.class);
-        assertThatThrownBy(() -> workflow.record(WRITER, TestEvents.MAPPER.createObjectNode(), "t"))
+        ObjectNode emptyObject = TestEvents.MAPPER.createObjectNode();
+        assertThatThrownBy(() -> workflow.recordBatch(WRITER, tooMany, "t")).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> workflow.recordBatch(WRITER, null, "t")).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> workflow.recordBatch(WRITER, emptyObject, "t"))
                 .isInstanceOf(BadRequestException.class);
         assertThat(store.events("red_logistica")).isEmpty();
         assertThat(store.events("platform")).isEmpty();
@@ -135,7 +139,8 @@ class RecordEventsWorkflowTest {
     void record_storeFailsAtCommit_nothingStays() {
         store.failNextCommit();
 
-        assertThatThrownBy(() -> workflow.record(WRITER, TestEvents.batch(event("red-logistica"), event("nowhere")), "t"))
+        JsonNode batch = TestEvents.batch(event("red-logistica"), event("nowhere"));
+        assertThatThrownBy(() -> workflow.recordBatch(WRITER, batch, "t"))
                 .isInstanceOf(ServiceUnavailableException.class);
         assertThat(store.events("red_logistica")).isEmpty();
         assertThat(store.events("platform")).isEmpty();
@@ -150,5 +155,23 @@ class RecordEventsWorkflowTest {
             assertThat(e.actor().get("id").asText()).isEqualTo("anonymous");
             assertThat(e.correlationId()).isEqualTo("trace-9");
         });
+    }
+
+    @Test
+    void preparedEntry_comparesThePayloadByValue() {
+        ObjectNode json = TestEvents.issuanceCompleted("red-logistica", "c-1", "holder-1");
+        AuditEvent event = AuditEvent.fromValidatedJson(json);
+        TenantRef tenant = TenantRef.forNewTenant("red-logistica");
+        byte[] hash = {1, 2};
+        RecordEventsWorkflow.ToStore left = new RecordEventsWorkflow.ToStore(json, event, tenant, hash);
+        RecordEventsWorkflow.ToStore same = new RecordEventsWorkflow.ToStore(json.deepCopy(), event, tenant,
+                new byte[] {1, 2});
+        RecordEventsWorkflow.ToStore different = new RecordEventsWorkflow.ToStore(json, event, tenant, new byte[] {9});
+        if (!left.equals(left) || left.equals("other")) {
+            throw new AssertionError("equals");
+        }
+
+        assertThat(left).isEqualTo(same).isNotEqualTo(different).hasSameHashCodeAs(same);
+        assertThat(left.toString()).contains("ToStore");
     }
 }

@@ -60,14 +60,14 @@ public final class ProblemMapper {
                     instance, List.of()));
             case TenantNotResolvedException e -> plain(problem("tenant_not_resolved", "Tenant not resolved", 403,
                     e.getMessage(), instance, List.of()));
-            case EventNotFoundException e -> plain(problem("event_not_found", "Event not found", 404,
+            case EventNotFoundException _ -> plain(problem("event_not_found", "Event not found", 404,
                     "The event does not exist, is outside your scope or is archived", instance, List.of()));
             case PeriodArchivedException e -> plain(problem("period_archived", "The period is archived", 409,
                     "Oldest instant still online: " + e.oldestOnline(), instance, List.of()));
             case RateLimitedException e -> new Mapped(problem("rate_limited", "Too many queries", 429,
                     "The volume limit was exceeded", instance, List.of()),
                     Map.of(HttpHeaders.RETRY_AFTER, Long.toString(e.retryAfterSeconds())));
-            case ServiceUnavailableException e -> new Mapped(problem("service_unavailable",
+            case ServiceUnavailableException _ -> new Mapped(problem("service_unavailable",
                     "The audit store is not available", 503,
                     "The request had no effect. Retry after Retry-After", instance, List.of()),
                     Map.of(HttpHeaders.RETRY_AFTER, Long.toString(UNAVAILABLE_RETRY_AFTER)));

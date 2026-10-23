@@ -47,7 +47,7 @@ public final class MicrometerAuditTelemetry implements AuditTelemetryPort {
         Observation observation = Observation.createNotStarted(name, observations);
         attributes.forEach(observation::highCardinalityKeyValue);
         observation.start();
-        try (Observation.Scope scope = observation.openScope()) {
+        try (var _ = observation.openScope()) {
             T result = work.get();
             resultAttributes.apply(result).forEach(observation::highCardinalityKeyValue);
             return result;

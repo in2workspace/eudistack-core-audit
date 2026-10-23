@@ -22,7 +22,7 @@ public final class SelfAuditJdbc implements SelfAuditPort {
     }
 
     @Override
-    public void record(TenantRef target, AuditEvent event) {
+    public void storeEvent(TenantRef target, AuditEvent event) {
         pool.inTransaction(jdbc -> {
             SearchPath.setLocal(jdbc, target.schemaName());
             return sql.insertOwnEvent(jdbc, event);

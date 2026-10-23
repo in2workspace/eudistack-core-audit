@@ -84,7 +84,7 @@ public class EventsQueryController {
     }
 
     private QueryContext context(HttpServletRequest request) {
-        return new QueryContext(ApiRequest.caller(request),
+        return new QueryContext(ApiRequest.authenticatedCaller(request),
                 (String) request.getAttribute(ApiRequest.HOST_TENANT), traceIds.current());
     }
 

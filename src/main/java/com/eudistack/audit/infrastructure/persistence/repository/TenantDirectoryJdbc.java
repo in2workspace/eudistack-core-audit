@@ -18,6 +18,9 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class TenantDirectoryJdbc implements TenantDirectoryPort, TenantRegistrationPort {
 
+    private static final String TENANT_ID = "tenant_id";
+    private static final String SCHEMA_NAME = "schema_name";
+
     private final JdbcPool pool;
     private final Map<String, TenantRef> cache = new ConcurrentHashMap<>();
 
@@ -42,7 +45,7 @@ public final class TenantDirectoryJdbc implements TenantDirectoryPort, TenantReg
             Optional<TenantRef> found = pool.jdbc()
                     .sql("SELECT tenant_id, schema_name FROM platform.tenant_directory WHERE tenant_id = :id")
                     .param("id", id)
-                    .query((rs, row) -> new TenantRef(rs.getString("tenant_id"), rs.getString("schema_name")))
+                    .query((rs, row) -> new TenantRef(rs.getString(TENANT_ID), rs.getString(SCHEMA_NAME)))
                     .optional();
             found.ifPresent(ref -> cache.put(id, ref));
             return found;
@@ -56,7 +59,7 @@ public final class TenantDirectoryJdbc implements TenantDirectoryPort, TenantReg
         try {
             return pool.jdbc()
                     .sql("SELECT tenant_id, schema_name FROM platform.tenant_directory ORDER BY schema_name")
-                    .query((rs, row) -> new TenantRef(rs.getString("tenant_id"), rs.getString("schema_name")))
+                    .query((rs, row) -> new TenantRef(rs.getString(TENANT_ID), rs.getString(SCHEMA_NAME)))
                     .list();
         } catch (DataAccessException e) {
             throw new ServiceUnavailableException("The tenant directory is not available", e);
@@ -71,8 +74,8 @@ public final class TenantDirectoryJdbc implements TenantDirectoryPort, TenantReg
                         VALUES (:tenant_id, :schema_name)
                         ON CONFLICT (tenant_id) DO NOTHING
                         """)
-                .param("tenant_id", tenant.tenantId())
-                .param("schema_name", tenant.schemaName())
+                .param(TENANT_ID, tenant.tenantId())
+                .param(SCHEMA_NAME, tenant.schemaName())
                 .update();
     }
 }

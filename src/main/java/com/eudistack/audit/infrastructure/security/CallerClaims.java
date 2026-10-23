@@ -28,6 +28,8 @@ import java.util.Map;
  */
 public final class CallerClaims {
 
+    private static final String POWER = "power";
+
     private final List<String> environmentSuffixes;
 
     public CallerClaims(List<String> environmentSuffixes) {
@@ -45,7 +47,7 @@ public final class CallerClaims {
         if (mandatee.isEmpty()) {
             mandatee = map(mandate.get("mandatee"));
         }
-        Object powerClaim = claims.getClaim("power") != null ? claims.getClaim("power") : mandate.get("power");
+        Object powerClaim = claims.getClaim(POWER) != null ? claims.getClaim(POWER) : mandate.get(POWER);
 
         ActorKind kind = isSystem(claims) ? ActorKind.SYSTEM : ActorKind.PERSON;
         String name = null;
@@ -97,7 +99,7 @@ public final class CallerClaims {
                             alias(power, "type"),
                             alias(power, "domain"),
                             alias(power, "function"),
-                            actions(power.containsKey("action") ? power.get("action") : power.get("tmf_action"))));
+                            actions(power.get(power.containsKey("action") ? "action" : "tmf_action"))));
                 }
             }
         }

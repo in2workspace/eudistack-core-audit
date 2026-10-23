@@ -24,8 +24,10 @@ import java.util.regex.Pattern;
  */
 public final class CatalogueYamlParser {
 
+    private static final String ACTOR = "actor";
+
     private static final Set<String> CANONICAL = Set.of("event_id", "event_type", "event_version", "occurred_at",
-            "recorded_at", "tenant", "organization", "source", "actor", "action", "resource", "result", "reason",
+            "recorded_at", "tenant", "organization", "source", ACTOR, "action", "resource", "result", "reason",
             "correlation_id", "details");
 
     private static final Map<String, FieldType> SCALARS = Map.of(
@@ -45,8 +47,8 @@ public final class CatalogueYamlParser {
         namedTypes.clear();
         root.path("types").properties().forEach(e -> namedTypes.put(e.getKey(), e.getValue()));
 
-        Map<String, FieldSpec> actorFields = namedTypes.containsKey("actor")
-                ? parseFields(namedTypes.get("actor"), Set.of()) : Map.of();
+        Map<String, FieldSpec> actorFields = namedTypes.containsKey(ACTOR)
+                ? parseFields(namedTypes.get(ACTOR), Set.of()) : Map.of();
 
         Map<String, EventTypeSpec> types = new HashMap<>();
         for (Iterator<Map.Entry<String, JsonNode>> categories = required(root, "categories").properties().iterator();
@@ -130,12 +132,12 @@ public final class CatalogueYamlParser {
                 return new FieldSpec(name, FieldType.ARRAY, required, List.of(), null, Map.of(), items);
             }
             default -> {
-                return named(name, type, node, required, identifiers);
+                return named(name, type, required, identifiers);
             }
         }
     }
 
-    private FieldSpec named(String name, String type, JsonNode node, RequiredRule required, Set<String> identifiers) {
+    private FieldSpec named(String name, String type, RequiredRule required, Set<String> identifiers) {
         JsonNode definition = namedTypes.get(type);
         if (definition == null) {
             throw new IllegalStateException("Unknown field type '" + type + "' of field " + name);

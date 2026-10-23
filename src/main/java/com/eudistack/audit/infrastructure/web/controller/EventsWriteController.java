@@ -48,10 +48,10 @@ public class EventsWriteController {
 
     @PostMapping(path = {ApiRequest.COLLECTION, ApiRequest.PREFIX + ApiRequest.COLLECTION},
             produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ObjectNode> record(HttpServletRequest request,
-                                             @RequestBody(required = false) byte[] body) {
-        Caller caller = ApiRequest.caller(request);
-        List<EventOutcome> outcomes = recordEvents.record(caller, parse(body), traceIds.current());
+    public ResponseEntity<ObjectNode> recordBatch(HttpServletRequest request,
+                                                  @RequestBody(required = false) byte[] body) {
+        Caller caller = ApiRequest.authenticatedCaller(request);
+        List<EventOutcome> outcomes = recordEvents.recordBatch(caller, parse(body), traceIds.current());
         return ResponseEntity.ok(toResponse(outcomes));
     }
 
@@ -61,7 +61,7 @@ public class EventsWriteController {
         }
         try {
             return reader.readTree(body);
-        } catch (IOException e) {
+        } catch (IOException _) {
             return null;
         }
     }

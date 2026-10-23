@@ -51,7 +51,7 @@ public final class ApiRequest {
         return PATHS.getPathWithinApplication(request);
     }
 
-    public static Face face(HttpServletRequest request) {
+    public static Face currentFace(HttpServletRequest request) {
         return (Face) request.getAttribute(FACE);
     }
 
@@ -59,7 +59,7 @@ public final class ApiRequest {
      * The caller authenticated by {@link BearerAuthenticationFilter}. A controller reached without one
      * answers 401 instead of running unauthenticated.
      */
-    public static Caller caller(HttpServletRequest request) {
+    public static Caller authenticatedCaller(HttpServletRequest request) {
         if (request.getAttribute(CALLER) instanceof Caller caller) {
             return caller;
         }

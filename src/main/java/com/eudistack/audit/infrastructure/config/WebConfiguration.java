@@ -51,7 +51,7 @@ public class WebConfiguration {
     public FilterRegistrationBean<HostPolicyFilter> hostPolicyFilter(AuditProperties properties, ProblemMapper problems,
                                                                      AuditTelemetryPort telemetry) {
         return register(new HostPolicyFilter(properties.getWeb().getInternalHosts(), properties.getRole(), problems,
-                telemetry), 1);
+                telemetry, properties.getWeb().getMaxBodyBytes()), 1);
     }
 
     @Bean
@@ -65,7 +65,7 @@ public class WebConfiguration {
     @Bean
     public FilterRegistrationBean<TenantResolutionFilter> tenantResolutionFilter(AuditProperties properties) {
         return register(new TenantResolutionFilter(properties.getWeb().getTenantHeader(),
-                properties.getWeb().getEnvironmentSuffixes()), 3);
+                properties.getWeb().getEnvironmentSuffixes(), properties.getWeb().getTrustedProxies()), 3);
     }
 
     @Bean

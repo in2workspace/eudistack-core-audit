@@ -36,6 +36,8 @@ import java.util.zip.GZIPOutputStream;
 public final class ArchiveFormat {
 
     public static final String FORMAT = "audit-event-jsonl/1";
+    private static final String EVENTS_OBJECT = "events_object";
+    private static final String EVENTS_HASH = "events_hash";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private ArchiveFormat() {
@@ -94,6 +96,14 @@ public final class ArchiveFormat {
         return events;
     }
 
+    public static byte[] uncompressed(byte[] gzip) {
+        try (GZIPInputStream in = new GZIPInputStream(new ByteArrayInputStream(gzip))) {
+            return in.readAllBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
     public static byte[] manifestToBytes(Manifest manifest) {
         ObjectNode node = MAPPER.createObjectNode();
         node.put("format", FORMAT);
@@ -102,8 +112,8 @@ public final class ArchiveFormat {
         node.put("part", manifest.part());
         node.put("event_count", manifest.eventCount());
         if (manifest.eventsKey() != null) {
-            node.put("events_object", manifest.eventsKey());
-            node.put("events_hash", manifest.eventsHash());
+            node.put(EVENTS_OBJECT, manifest.eventsKey());
+            node.put(EVENTS_HASH, manifest.eventsHash());
         }
         ArrayNode ids = node.putArray("event_ids");
         manifest.eventIds().forEach(id -> ids.add(id.toString()));
@@ -122,8 +132,8 @@ public final class ArchiveFormat {
                     LocalDate.parse(node.get("day").asText()),
                     node.get("part").asInt(),
                     node.get("event_count").asInt(),
-                    node.hasNonNull("events_object") ? node.get("events_object").asText() : null,
-                    node.hasNonNull("events_hash") ? node.get("events_hash").asText() : null,
+                    node.hasNonNull(EVENTS_OBJECT) ? node.get(EVENTS_OBJECT).asText() : null,
+                    node.hasNonNull(EVENTS_HASH) ? node.get(EVENTS_HASH).asText() : null,
                     ids,
                     Instant.parse(node.get("created_at").asText()),
                     Instant.parse(node.get("retain_until").asText()));

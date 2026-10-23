@@ -4,6 +4,8 @@ plugins {
     checkstyle
     id("org.springframework.boot") version "3.5.11"
     id("io.spring.dependency-management") version "1.1.7"
+    id("org.sonarqube") version "7.4.0.8496"
+    id("org.cyclonedx.bom") version "2.2.0"
 }
 
 group = "com.eudistack"
@@ -84,6 +86,26 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
+tasks.named<org.cyclonedx.gradle.CycloneDxTask>("cyclonedxBom") {
+    includeConfigs.set(listOf("runtimeClasspath"))
+    schemaVersion.set("1.6")
+    destination.set(layout.buildDirectory.dir("reports/sbom").get().asFile)
+    outputName.set("sbom")
+    outputFormat.set("json")
+    includeBomSerialNumber.set(false)
+    includeLicenseText.set(false)
+}
+
+sonar {
+    properties {
+        property("sonar.projectKey", "in2workspace_eudistack-core-audit")
+        property("sonar.organization", "in2workspace")
+        property("sonar.host.url", "https://sonarcloud.io")
+        property("sonar.sources", "src/main/java,src/main/resources")
+        property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
+        property("sonar.coverage.exclusions", "src/main/java/**/AuditApplication.java")
+    }
+}
 checkstyle {
     configFile = file("${rootDir}/config/checkstyle/checkstyle.xml")
 }

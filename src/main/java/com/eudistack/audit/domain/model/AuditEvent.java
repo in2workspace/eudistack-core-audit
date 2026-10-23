@@ -34,19 +34,27 @@ public record AuditEvent(
         JsonNode details
 ) {
 
+    private static final String JSON_TENANT = "tenant";
+    private static final String JSON_SOURCE = "source";
+    private static final String JSON_ACTOR = "actor";
+    private static final String JSON_ACTION = "action";
+    private static final String JSON_RESOURCE = "resource";
+    private static final String JSON_RESULT = "result";
+    private static final String JSON_DETAILS = "details";
+
     public AuditEvent {
         Objects.requireNonNull(eventId, "eventId");
         Objects.requireNonNull(eventType, "eventType");
         Objects.requireNonNull(eventVersion, "eventVersion");
         Objects.requireNonNull(occurredAt, "occurredAt");
-        Objects.requireNonNull(tenant, "tenant");
-        Objects.requireNonNull(source, "source");
-        Objects.requireNonNull(actor, "actor");
-        Objects.requireNonNull(action, "action");
-        Objects.requireNonNull(resource, "resource");
-        Objects.requireNonNull(result, "result");
+        Objects.requireNonNull(tenant, JSON_TENANT);
+        Objects.requireNonNull(source, JSON_SOURCE);
+        Objects.requireNonNull(actor, JSON_ACTOR);
+        Objects.requireNonNull(action, JSON_ACTION);
+        Objects.requireNonNull(resource, JSON_RESOURCE);
+        Objects.requireNonNull(result, JSON_RESULT);
         Objects.requireNonNull(correlationId, "correlationId");
-        Objects.requireNonNull(details, "details");
+        Objects.requireNonNull(details, JSON_DETAILS);
     }
 
     /**
@@ -59,16 +67,16 @@ public record AuditEvent(
                 node.get("event_version").asText(),
                 OffsetDateTime.parse(node.get("occurred_at").asText()).toInstant(),
                 null,
-                node.get("tenant").asText(),
+                node.get(JSON_TENANT).asText(),
                 textOrNull(node, "organization"),
-                node.get("source").asText(),
-                node.get("actor"),
-                node.get("action").asText(),
-                node.get("resource").asText(),
-                Result.fromWire(node.get("result").asText()).orElseThrow(),
+                node.get(JSON_SOURCE).asText(),
+                node.get(JSON_ACTOR),
+                node.get(JSON_ACTION).asText(),
+                node.get(JSON_RESOURCE).asText(),
+                Result.fromWire(node.get(JSON_RESULT).asText()).orElseThrow(),
                 textOrNull(node, "reason"),
                 node.get("correlation_id").asText(),
-                node.get("details"));
+                node.get(JSON_DETAILS));
     }
 
     /**
@@ -103,20 +111,20 @@ public record AuditEvent(
         if (recordedAt != null) {
             node.put("recorded_at", recordedAt.toString());
         }
-        node.put("tenant", tenant);
+        node.put(JSON_TENANT, tenant);
         if (organization != null) {
             node.put("organization", organization);
         }
-        node.put("source", source);
-        node.set("actor", actor.deepCopy());
-        node.put("action", action);
-        node.put("resource", resource);
-        node.put("result", result.wireValue());
+        node.put(JSON_SOURCE, source);
+        node.set(JSON_ACTOR, actor.deepCopy());
+        node.put(JSON_ACTION, action);
+        node.put(JSON_RESOURCE, resource);
+        node.put(JSON_RESULT, result.wireValue());
         if (reason != null) {
             node.put("reason", reason);
         }
         node.put("correlation_id", correlationId);
-        node.set("details", details.deepCopy());
+        node.set(JSON_DETAILS, details.deepCopy());
         return node;
     }
 

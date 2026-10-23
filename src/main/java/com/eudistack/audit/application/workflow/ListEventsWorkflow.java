@@ -47,7 +47,8 @@ public final class ListEventsWorkflow implements ListEventsPort {
 
     public static final int DEFAULT_LIMIT = 100;
     public static final int MAX_LIMIT = 500;
-    private static final Pattern DETAILS_PATH = Pattern.compile("^[a-z_]+(\\.[a-z_]+)*$");
+    private static final String DETAILS_VALUE = "details_value";
+    private static final Pattern DETAILS_PATH = Pattern.compile("^[a-z_]++(?:\\.[a-z_]++)*+$");
     private static final Pattern RFC3339_DATE_PREFIX = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}[Tt]");
 
     private final QueryAccessGuard guard;
@@ -110,7 +111,7 @@ public final class ListEventsWorkflow implements ListEventsPort {
         maxLength("resource", request.resource(), 200);
         maxLength("actor_id", request.actorId(), 200);
         maxLength("details_path", request.detailsPath(), 100);
-        maxLength("details_value", request.detailsValue(), 200);
+        maxLength(DETAILS_VALUE, request.detailsValue(), 200);
         maxLength("organization", request.organization(), 100);
         maxLength("tenant", request.tenant(), 100);
         Instant from = parseInstant("from", request.from());
@@ -149,13 +150,13 @@ public final class ListEventsWorkflow implements ListEventsPort {
     private ObjectNode containment(ListRequest request, List<EventTypeSpec> types) {
         if (request.detailsPath() == null) {
             if (request.detailsValue() != null) {
-                throw new BadRequestException("details_value", "details_value requires details_path");
+                throw new BadRequestException(DETAILS_VALUE, "details_value requires details_path");
             }
             return null;
         }
         List<String> missing = new ArrayList<>();
         if (request.detailsValue() == null) {
-            missing.add("details_value");
+            missing.add(DETAILS_VALUE);
         }
         if (types.isEmpty()) {
             missing.add("event_type");
@@ -214,7 +215,7 @@ public final class ListEventsWorkflow implements ListEventsPort {
             if (limit >= 1 && limit <= MAX_LIMIT) {
                 return limit;
             }
-        } catch (NumberFormatException e) {
+        } catch (NumberFormatException _) {
             // falls through to the 400
         }
         throw new BadRequestException("limit", "limit must be an integer between 1 and " + MAX_LIMIT);
@@ -229,7 +230,7 @@ public final class ListEventsWorkflow implements ListEventsPort {
                 throw new DateTimeParseException("Year must have four digits", raw, 0);
             }
             return OffsetDateTime.parse(raw).toInstant();
-        } catch (DateTimeParseException e) {
+        } catch (DateTimeParseException _) {
             throw new BadRequestException(field, field + " must be an RFC 3339 date-time");
         }
     }
@@ -251,7 +252,7 @@ public final class ListEventsWorkflow implements ListEventsPort {
         putIfPresent(node, "resource", request.resource());
         putIfPresent(node, "actor_id", request.actorId());
         putIfPresent(node, "details_path", request.detailsPath());
-        putIfPresent(node, "details_value", request.detailsValue());
+        putIfPresent(node, DETAILS_VALUE, request.detailsValue());
         putIfPresent(node, "organization", organization);
         putIfPresent(node, "limit", request.limit());
         return CanonicalJson.hex(CanonicalJson.sha256(node));

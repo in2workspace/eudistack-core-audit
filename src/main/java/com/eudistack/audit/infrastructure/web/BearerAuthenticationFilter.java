@@ -52,7 +52,7 @@ public final class BearerAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return ApiRequest.face(request) == null;
+        return ApiRequest.currentFace(request) == null;
     }
 
     @Override
@@ -67,7 +67,7 @@ public final class BearerAuthenticationFilter extends OncePerRequestFilter {
             Caller caller = verifier.verify(header.substring(BEARER.length()).trim());
             request.setAttribute(ApiRequest.CALLER, caller);
         } catch (AuthenticationRequiredException | InvalidTokenException e) {
-            if (ApiRequest.face(request) == ApiRequest.Face.WRITE) {
+            if (ApiRequest.currentFace(request) == ApiRequest.Face.WRITE) {
                 RecordEventsPort port = recorder.getIfAvailable();
                 if (port != null) {
                     port.recordAuthenticationFailure(countEvents(request), traceIds.current());
@@ -91,7 +91,7 @@ public final class BearerAuthenticationFilter extends OncePerRequestFilter {
             byte[] body = in.readNBytes(maxBodyBytes);
             JsonNode node = mapper.readTree(body);
             return EventBatch.countEvents(node);
-        } catch (IOException | RuntimeException e) {
+        } catch (IOException | RuntimeException _) {
             return 0;
         }
     }

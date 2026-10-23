@@ -24,6 +24,15 @@ public final class ArchiveJdbc implements ArchiveRepositoryPort {
 
     private static final int DELETE_CHUNK = 1000;
 
+    private static final String TRY_LOCK = """
+            INSERT INTO platform.archive_lock (tenant_id, day, locked_by)
+            VALUES (:tenant_id, :day, :owner)
+            ON CONFLICT (tenant_id, day) DO UPDATE
+              SET locked_by = EXCLUDED.locked_by, locked_at = clock_timestamp()
+              WHERE platform.archive_lock.locked_at < :stale_before
+            RETURNING locked_by
+            """;
+
     private final JdbcPool pool;
     private final EventSql sql;
 
@@ -73,14 +82,7 @@ public final class ArchiveJdbc implements ArchiveRepositoryPort {
 
     @Override
     public boolean tryLock(String tenantId, LocalDate day, String owner, Instant staleBefore) {
-        return pool.inTransaction(jdbc -> jdbc.sql("""
-                        INSERT INTO platform.archive_lock (tenant_id, day, locked_by)
-                        VALUES (:tenant_id, :day, :owner)
-                        ON CONFLICT (tenant_id, day) DO UPDATE
-                          SET locked_by = EXCLUDED.locked_by, locked_at = clock_timestamp()
-                          WHERE platform.archive_lock.locked_at < :stale_before
-                        RETURNING locked_by
-                        """)
+        return pool.inTransaction(jdbc -> jdbc.sql(TRY_LOCK)
                 .param("tenant_id", tenantId)
                 .param("day", day)
                 .param("owner", owner)

@@ -106,14 +106,25 @@ public class CoreConfiguration {
     @Bean
     @ConditionalOnAuditRole({AuditRole.WRITER, AuditRole.READER, AuditRole.ALL})
     public NimbusTokenVerifier tokenVerifier(AuditProperties properties, CallerClaims claims) {
-        return tokenVerifier(properties.getSecurity(), claims);
+        requireAudience(properties.getRole(), properties.getSecurity().getAudience());
+        return nimbusVerifier(properties.getSecurity(), claims);
+    }
+
+    /**
+     * Writer and reader must declare {@code audit.security.audience}. Role {@code all} may omit it.
+     */
+    static void requireAudience(AuditRole role, String audience) {
+        if ((role == AuditRole.WRITER || role == AuditRole.READER)
+                && (audience == null || audience.isBlank())) {
+            throw new IllegalStateException("audit.security.audience is required for role " + role.name().toLowerCase());
+        }
     }
 
     /**
      * @param jwks inline JWKS ({@code audit.security.jwks}, tests and local development) or, when absent,
      *             the remote JWKS of the Verifier ({@code audit.security.jwks-uri})
      */
-    public static NimbusTokenVerifier tokenVerifier(AuditProperties.Security security, CallerClaims claims) {
+    public static NimbusTokenVerifier nimbusVerifier(AuditProperties.Security security, CallerClaims claims) {
         return new NimbusTokenVerifier(jwkSource(security), security, claims);
     }
 

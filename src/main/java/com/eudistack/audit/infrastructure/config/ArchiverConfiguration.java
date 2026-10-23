@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -48,6 +49,7 @@ public class ArchiverConfiguration {
         }
         S3ClientBuilder builder = S3Client.builder()
                 .region(Region.of(archive.getRegion()))
+                .credentialsProvider(DefaultCredentialsProvider.builder().build())
                 .forcePathStyle(archive.isPathStyle());
         if (archive.getEndpoint() != null && !archive.getEndpoint().isBlank()) {
             builder.endpointOverride(URI.create(archive.getEndpoint()));
@@ -90,7 +92,7 @@ public class ArchiverConfiguration {
     @ConditionalOnProperty(name = "audit.recover.enabled", havingValue = "true")
     public RecoverArchiveRunner recoverArchiveRunner(RecoverArchiveWorkflow workflow, AuditProperties properties,
                                                      CallerClaims claims, ObjectMapper mapper) {
-        return new RecoverArchiveRunner(workflow, CoreConfiguration.tokenVerifier(properties.getSecurity(), claims),
+        return new RecoverArchiveRunner(workflow, CoreConfiguration.nimbusVerifier(properties.getSecurity(), claims),
                 properties.getRecover(), mapper);
     }
 }

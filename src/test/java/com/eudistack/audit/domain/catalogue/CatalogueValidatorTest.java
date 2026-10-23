@@ -34,6 +34,33 @@ class CatalogueValidatorTest {
     }
 
     @Test
+    void validate_blankTypeOrVersion_isInvalid() {
+        assertThat(violationsOf(issuanceCompleted().put("event_type", "  "))).extracting(Violation::field)
+                .contains("event_type");
+        assertThat(violationsOf(issuanceCompleted().put("event_version", "nope"))).extracting(Violation::field)
+                .contains("event_version");
+    }
+
+    @Test
+    void validate_actorMustBeAnObject_andNestedShapesMustMatch() {
+        ObjectNode missingActor = issuanceCompleted();
+        missingActor.remove("actor");
+        assertThat(violationsOf(missingActor)).extracting(Violation::field).contains("actor");
+
+        ObjectNode actorText = issuanceCompleted();
+        actorText.put("actor", "someone");
+        assertThat(violationsOf(actorText)).extracting(Violation::field).contains("actor");
+
+        ObjectNode attributes = issuanceCompleted();
+        ((ObjectNode) attributes.get("details")).put("issued_attributes", "given_name");
+        assertThat(violationsOf(attributes)).extracting(Violation::field).contains("details.issued_attributes");
+
+        ObjectNode holder = issuanceCompleted();
+        ((ObjectNode) holder.get("details")).put("holder", "maria");
+        assertThat(violationsOf(holder)).extracting(Violation::field).contains("details.holder");
+    }
+
+    @Test
     void validate_unknownType_isUnknownEventType() {
         ObjectNode event = issuanceCompleted().put("event_type", "IssuanceExploded");
 

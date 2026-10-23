@@ -1,5 +1,6 @@
 package com.eudistack.audit.infrastructure.storage;
 
+import com.eudistack.audit.domain.port.out.ColdStorageException;
 import com.eudistack.audit.domain.port.out.ColdStoragePort;
 
 import java.io.IOException;
@@ -38,7 +39,9 @@ public final class FileSystemColdStorage implements ColdStoragePort {
             Files.write(file, content, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
             Files.writeString(resolve(key + RETENTION_SUFFIX), retainUntil.toString(), StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
-            file.toFile().setReadOnly();
+            if (!file.toFile().setReadOnly()) {
+                throw new ColdStorageException("Could not make the object read-only: " + key, null);
+            }
         } catch (FileAlreadyExistsException e) {
             throw new ColdStorageException("Object already exists: " + key, e);
         } catch (IOException e) {

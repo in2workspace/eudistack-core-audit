@@ -8,5 +8,5 @@ import com.eudistack.audit.domain.model.TenantRef;
  */
 public interface SelfAuditPort {
 
-    void record(TenantRef target, AuditEvent event);
+    void storeEvent(TenantRef target, AuditEvent event);
 }

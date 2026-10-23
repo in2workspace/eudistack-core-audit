@@ -100,47 +100,60 @@ public final class SelfEventFactory {
     }
 
     /**
-     * {@code AuditTrailQueried}, stored in the tenant of the query (design §3.4.5).
-     *
-     * @param filters       the query parameters as received, for {@code List}; ignored for {@code Get}
-     * @param reason        {@code null} on success
-     * @param returnedCount number of events returned, only on success
+     * Arguments of {@code AuditTrailQueried}. {@code filters} are the query parameters as received, for
+     * {@code List}, and ignored for {@code Get}. {@code reason} is {@code null} on success.
+     * {@code returnedCount} is the number of events returned, only on success.
      */
-    public AuditEvent trailQueried(Caller caller, TenantRef target, String operation, String queriedScope,
-                                   ObjectNode filters, String reason, Integer returnedCount, String traceId) {
+    public record TrailQuery(Caller caller, TenantRef target, String operation, String queriedScope,
+                             ObjectNode filters, String reason, Integer returnedCount, String traceId) {
+    }
+
+    /**
+     * Arguments of {@code AuditEventsArchived}. {@code failureReason}, {@code archiveRef} and
+     * {@code archiveHash} are {@code null} on the path that does not use them.
+     */
+    public record ArchivedDay(String archivedTenant, Instant periodFrom, Instant periodTo, int eventCount,
+                              String failureReason, String archiveRef, String archiveHash, String runId) {
+    }
+
+    /**
+     * {@code AuditTrailQueried}, stored in the tenant of the query (design §3.4.5).
+     */
+    public AuditEvent trailQueried(TrailQuery query) {
         ObjectNode details = JSON.objectNode();
-        details.put("operation", operation);
-        details.put("queried_scope", queriedScope);
-        if (OPERATION_LIST.equals(operation)) {
-            details.set("filters", filters == null ? JSON.objectNode() : filters.deepCopy());
+        details.put("operation", query.operation());
+        details.put("queried_scope", query.queriedScope());
+        if (OPERATION_LIST.equals(query.operation())) {
+            details.set("filters", query.filters() == null ? JSON.objectNode() : query.filters().deepCopy());
         }
-        if (reason == null && returnedCount != null) {
-            details.put("returned_count", returnedCount);
+        if (query.reason() == null && query.returnedCount() != null) {
+            details.put("returned_count", query.returnedCount());
         }
         return new AuditEvent(UUID.randomUUID(), "AuditTrailQueried", catalogueVersion, now(), null,
-                target.tenantId(), caller.organization(), SOURCE_API, caller.toActorJson(), "QueryAuditTrail",
-                OPERATION_LIST.equals(operation) ? "audit-query:list" : "audit-query:get",
-                reason == null ? Result.SUCCESS : Result.DENIED, reason, traceId, details);
+                query.target().tenantId(), query.caller().organization(), SOURCE_API, query.caller().toActorJson(),
+                "QueryAuditTrail",
+                OPERATION_LIST.equals(query.operation()) ? "audit-query:list" : "audit-query:get",
+                query.reason() == null ? Result.SUCCESS : Result.DENIED, query.reason(), query.traceId(), details);
     }
 
     /**
      * {@code AuditEventsArchived}, stored in {@code platform}.
      */
-    public AuditEvent archived(String archivedTenant, Instant periodFrom, Instant periodTo, int eventCount,
-                               String failureReason, String archiveRef, String archiveHash, String runId) {
+    public AuditEvent archived(ArchivedDay day) {
         ObjectNode details = JSON.objectNode();
-        details.put("archived_tenant", archivedTenant);
-        details.put("period_from", periodFrom.toString());
-        details.put("period_to", periodTo.toString());
-        details.put("event_count", eventCount);
-        if (failureReason == null) {
-            details.put("archive_ref", archiveRef);
-            details.put("archive_hash", archiveHash);
+        details.put("archived_tenant", day.archivedTenant());
+        details.put("period_from", day.periodFrom().toString());
+        details.put("period_to", day.periodTo().toString());
+        details.put("event_count", day.eventCount());
+        if (day.failureReason() == null) {
+            details.put("archive_ref", day.archiveRef());
+            details.put("archive_hash", day.archiveHash());
         }
         return new AuditEvent(UUID.randomUUID(), "AuditEventsArchived", catalogueVersion, now(), null,
                 TenantRef.PLATFORM_ID, null, SOURCE_ARCHIVER, systemActor(SOURCE_ARCHIVER), "ArchiveAuditTrail",
-                "audit-archive:" + archivedTenant + ":" + periodFrom.toString().substring(0, 10),
-                failureReason == null ? Result.SUCCESS : Result.FAILURE, failureReason, runId, details);
+                "audit-archive:" + day.archivedTenant() + ":" + day.periodFrom().toString().substring(0, 10),
+                day.failureReason() == null ? Result.SUCCESS : Result.FAILURE, day.failureReason(), day.runId(),
+                details);
     }
 
     private Instant now() {

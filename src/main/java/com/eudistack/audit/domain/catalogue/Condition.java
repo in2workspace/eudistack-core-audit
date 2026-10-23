@@ -21,9 +21,9 @@ public final class Condition {
     private static final Pattern COMPARISON = Pattern.compile(
             "^([a-z_][a-z0-9_]*)\\s*(==|!=)\\s*([A-Za-z0-9_.:\\-]+)$");
     private static final Pattern MEMBERSHIP = Pattern.compile(
-            "^([a-z_][a-z0-9_]*)\\s+(not\\s+in|in)\\s*\\[\\s*([A-Za-z0-9_.:\\-]+(?:\\s*,\\s*[A-Za-z0-9_.:\\-]+)*)\\s*]$");
-    private static final Pattern OR = Pattern.compile("\\s+or\\s+");
-    private static final Pattern AND = Pattern.compile("\\s+and\\s+");
+            "^([a-z_][a-z0-9_]*+)\\s++(not\\s++in|in)\\s*+\\[\\s*+([A-Za-z0-9_.:\\-]++(?:\\s*+,\\s*+[A-Za-z0-9_.:\\-]++)*+)\\s*+]$");
+    private static final Pattern OR = Pattern.compile("\\s++or\\s++");
+    private static final Pattern AND = Pattern.compile("\\s++and\\s++");
 
     /** Disjunction of conjunctions of clauses. */
     private final List<List<Clause>> alternatives;

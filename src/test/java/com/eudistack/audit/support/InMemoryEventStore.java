@@ -79,7 +79,7 @@ public final class InMemoryEventStore implements AuditEventRepositoryPort, SelfA
     }
 
     @Override
-    public synchronized void record(TenantRef target, AuditEvent event) {
+    public synchronized void storeEvent(TenantRef target, AuditEvent event) {
         schemas.computeIfAbsent(target.schemaName(), s -> new LinkedHashMap<>())
                 .putIfAbsent(event.eventId(), new Row(event, CanonicalJson.sha256(event.toJson())));
     }

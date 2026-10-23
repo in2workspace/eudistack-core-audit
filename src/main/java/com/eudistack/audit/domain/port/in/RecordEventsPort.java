@@ -18,7 +18,7 @@ public interface RecordEventsPort {
      * @param body    parsed request body, or {@code null} when it was not JSON
      * @param traceId trace identifier of the request
      */
-    List<EventOutcome> record(Caller caller, JsonNode body, String traceId);
+    List<EventOutcome> recordBatch(Caller caller, JsonNode body, String traceId);
 
     /**
      * Leaves an {@code AuditWriteDenied} ({@code InvalidToken}) for a write whose token was missing or

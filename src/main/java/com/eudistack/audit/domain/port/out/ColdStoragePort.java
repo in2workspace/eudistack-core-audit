@@ -30,10 +30,4 @@ public interface ColdStoragePort {
      * Reference of an object for {@code archive_ref}, e.g. {@code s3://bucket/key}.
      */
     String reference(String key);
-
-    final class ColdStorageException extends RuntimeException {
-        public ColdStorageException(String message, Throwable cause) {
-            super(message, cause);
-        }
-    }
 }

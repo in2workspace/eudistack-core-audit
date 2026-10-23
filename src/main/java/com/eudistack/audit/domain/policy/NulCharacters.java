@@ -38,23 +38,34 @@ public final class NulCharacters {
             return node.textValue().indexOf(NUL) >= 0 ? Optional.of(path) : Optional.empty();
         }
         if (node.isArray()) {
-            for (int i = 0; i < node.size(); i++) {
-                Optional<String> found = firstPath(node.get(i), path + "[" + i + "]");
-                if (found.isPresent()) {
-                    return found;
-                }
+            return firstInArray(node, path);
+        }
+        if (node.isObject()) {
+            return firstInObject(node, path);
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<String> firstInArray(JsonNode node, String path) {
+        for (int i = 0; i < node.size(); i++) {
+            Optional<String> found = firstPath(node.get(i), path + "[" + i + "]");
+            if (found.isPresent()) {
+                return found;
             }
-        } else if (node.isObject()) {
-            for (Iterator<Map.Entry<String, JsonNode>> it = node.properties().iterator(); it.hasNext(); ) {
-                Map.Entry<String, JsonNode> field = it.next();
-                String child = path.isEmpty() ? field.getKey() : path + "." + field.getKey();
-                if (field.getKey().indexOf(NUL) >= 0) {
-                    return Optional.of(strip(child));
-                }
-                Optional<String> found = firstPath(field.getValue(), child);
-                if (found.isPresent()) {
-                    return found;
-                }
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<String> firstInObject(JsonNode node, String path) {
+        for (Iterator<Map.Entry<String, JsonNode>> it = node.properties().iterator(); it.hasNext(); ) {
+            Map.Entry<String, JsonNode> field = it.next();
+            String child = path.isEmpty() ? field.getKey() : path + "." + field.getKey();
+            if (field.getKey().indexOf(NUL) >= 0) {
+                return Optional.of(strip(child));
+            }
+            Optional<String> found = firstPath(field.getValue(), child);
+            if (found.isPresent()) {
+                return found;
             }
         }
         return Optional.empty();

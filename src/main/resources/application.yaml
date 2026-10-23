@@ -68,11 +68,14 @@ audit:
       - 'audit\.internal\..+'
     tenant-header: X-Tenant-Id
     environment-suffixes: [-stg, -dev, -pre]
+    # Addresses that may send tenant-header. Empty: the header is ignored and the tenant comes from the host.
+    trusted-proxies: []
+    max-body-bytes: ${AUDIT_WEB_MAX_BODY_BYTES:5242880}
   security:
     jwks-uri: ${AUDIT_SECURITY_JWKS_URI:}
     # e.g. https://{tenant}.stg.eudistack.net/verifier,https://{tenant}-stg.eudistack.net/verifier
     trusted-issuers: ${AUDIT_SECURITY_TRUSTED_ISSUERS:}
-    # Empty until the Verifier emits an audience for this service (PO-12).
+    # Required for roles writer and reader. Role all (local and CI) may leave it empty until the Verifier emits one (PO-12).
     audience: ${AUDIT_SECURITY_AUDIENCE:}
   datasource:
     writer:

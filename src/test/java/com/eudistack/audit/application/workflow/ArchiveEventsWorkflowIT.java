@@ -6,10 +6,9 @@ import com.eudistack.audit.domain.model.ActorKind;
 import com.eudistack.audit.domain.model.AuditEvent;
 import com.eudistack.audit.domain.model.Caller;
 import com.eudistack.audit.domain.model.Power;
-import com.eudistack.audit.domain.model.TenantRef;
 import com.eudistack.audit.domain.policy.SelfEventFactory;
 import com.eudistack.audit.domain.port.out.AuditTelemetryPort;
-import com.eudistack.audit.domain.port.out.ColdStoragePort;
+import com.eudistack.audit.domain.port.out.ColdStorageException;
 import com.eudistack.audit.infrastructure.persistence.repository.ArchiveJdbc;
 import com.eudistack.audit.infrastructure.persistence.repository.EventSql;
 import com.eudistack.audit.infrastructure.persistence.repository.SelfAuditJdbc;
@@ -43,7 +42,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class ArchiveEventsWorkflowIT {
 
-    private static final TenantRef RED = new TenantRef("red-logistica", "red_logistica");
     private static HikariDataSource archiverDataSource;
 
     private final MutableClock storageClock = new MutableClock(Instant.now());
@@ -148,7 +146,7 @@ class ArchiveEventsWorkflowIT {
         workflow.run();
         String key = ArchiveFormat.eventsKey("red-logistica", LocalDate.ofInstant(old.recordedAt(), ZoneOffset.UTC), 0);
 
-        assertThatThrownBy(() -> storage.delete(key)).isInstanceOf(ColdStoragePort.ColdStorageException.class);
+        assertThatThrownBy(() -> storage.delete(key)).isInstanceOf(ColdStorageException.class);
         assertThat(storage.lockedUntil(key).orElseThrow())
                 .isAfterOrEqualTo(old.recordedAt().atZone(ZoneOffset.UTC).plusYears(7).toInstant());
 

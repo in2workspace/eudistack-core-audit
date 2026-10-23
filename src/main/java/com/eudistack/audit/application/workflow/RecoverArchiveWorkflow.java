@@ -88,8 +88,9 @@ public final class RecoverArchiveWorkflow {
             }
         }
         events.sort(Comparator.comparing(e -> new CursorPosition(e.occurredAt(), e.eventId(), null)));
-        selfAudit.record(tenant.get(), selfEvents.trailQueried(caller, tenant.get(), SelfEventFactory.OPERATION_LIST,
-                tenant.get().tenantId(), filters, null, events.size(), traceId));
+        selfAudit.storeEvent(tenant.get(), selfEvents.trailQueried(new SelfEventFactory.TrailQuery(
+                caller, tenant.get(), SelfEventFactory.OPERATION_LIST, tenant.get().tenantId(), filters, null,
+                events.size(), traceId)));
         return events;
     }
 
@@ -97,8 +98,9 @@ public final class RecoverArchiveWorkflow {
     private void recordDenial(Caller caller, TenantRef target, String label, ObjectNode filters,
                               ScopePolicy.DenialReason reason, String traceId) {
         try {
-            selfAudit.record(target, selfEvents.trailQueried(caller, target, SelfEventFactory.OPERATION_LIST, label,
-                    filters, reason.catalogueReason(), null, traceId));
+            selfAudit.storeEvent(target, selfEvents.trailQueried(new SelfEventFactory.TrailQuery(
+                    caller, target, SelfEventFactory.OPERATION_LIST, label, filters, reason.catalogueReason(), null,
+                    traceId)));
         } catch (RuntimeException e) {
             LOG.log(System.Logger.Level.ERROR, "Denied AuditTrailQueried of a recovery could not be stored", e);
         }
