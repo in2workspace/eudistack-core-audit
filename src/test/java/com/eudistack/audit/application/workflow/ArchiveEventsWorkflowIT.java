@@ -10,7 +10,6 @@ import com.eudistack.audit.domain.model.TenantRef;
 import com.eudistack.audit.domain.policy.SelfEventFactory;
 import com.eudistack.audit.domain.port.out.AuditTelemetryPort;
 import com.eudistack.audit.domain.port.out.ColdStorageException;
-import com.eudistack.audit.domain.port.out.ColdStoragePort;
 import com.eudistack.audit.infrastructure.persistence.repository.ArchiveJdbc;
 import com.eudistack.audit.infrastructure.persistence.repository.EventSql;
 import com.eudistack.audit.infrastructure.persistence.repository.SelfAuditJdbc;
@@ -44,7 +43,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class ArchiveEventsWorkflowIT {
 
-    private static final TenantRef RED = new TenantRef("red-logistica", "red_logistica");
     private static HikariDataSource archiverDataSource;
 
     private final MutableClock storageClock = new MutableClock(Instant.now());

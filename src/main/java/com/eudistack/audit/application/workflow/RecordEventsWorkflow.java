@@ -202,7 +202,7 @@ public final class RecordEventsWorkflow implements RecordEventsPort {
     private sealed interface Prepared permits ToStore, Rejected {
     }
 
-    private record ToStore(JsonNode received, AuditEvent event, TenantRef tenant, byte[] payloadHash)
+    record ToStore(JsonNode received, AuditEvent event, TenantRef tenant, byte[] payloadHash)
             implements Prepared {
 
         @Override

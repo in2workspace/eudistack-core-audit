@@ -34,7 +34,7 @@ class SelfEventFactoryTest {
 
     private void assertConforms(AuditEvent event) {
         ValidationResult result = validator.validate(event.toJson());
-        assertThat(result).as(() -> result.toString()).isInstanceOf(ValidationResult.Valid.class);
+        assertThat(result).as(result::toString).isInstanceOf(ValidationResult.Valid.class);
     }
 
     @Test

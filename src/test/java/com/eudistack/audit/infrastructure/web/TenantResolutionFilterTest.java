@@ -20,6 +20,13 @@ class TenantResolutionFilterTest {
     }
 
     @Test
+    void blankHeaderNameNeverReadsTheHeader() {
+        TenantResolutionFilter ignored = new TenantResolutionFilter("  ", List.of("-stg"), List.of("10.0.0.8"));
+
+        assertThat(ignored.resolve(request("10.0.0.8"))).isEqualTo("red-logistica");
+    }
+
+    @Test
     void headerFromATrustedProxyReplacesTheHost() {
         MockHttpServletRequest request = request("10.0.0.8");
 

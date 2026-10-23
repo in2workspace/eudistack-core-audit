@@ -90,7 +90,7 @@ public class ArchiverConfiguration {
     @ConditionalOnProperty(name = "audit.recover.enabled", havingValue = "true")
     public RecoverArchiveRunner recoverArchiveRunner(RecoverArchiveWorkflow workflow, AuditProperties properties,
                                                      CallerClaims claims, ObjectMapper mapper) {
-        return new RecoverArchiveRunner(workflow, CoreConfiguration.tokenVerifier(properties.getSecurity(), claims),
+        return new RecoverArchiveRunner(workflow, CoreConfiguration.nimbusVerifier(properties.getSecurity(), claims),
                 properties.getRecover(), mapper);
     }
 }

@@ -75,4 +75,13 @@ class MicrometerAuditTelemetryTest {
                 .count()).isEqualTo(1.0);
         assertThat(meters.get("audit.batch.latency").tag("outcome", "ok").timer().count()).isEqualTo(1);
     }
+
+    @Test
+    void archiveLag_isTheLargestOpenDelayOfEachScope() {
+        telemetry.archiveLag("red-logistica", false, 90);
+        telemetry.archiveLag("sandbox", false, 10);
+
+        assertThat(meters.get("audit.archive.lag").tag("scope", "tenant").gauge().value()).isEqualTo(90);
+        assertThat(meters.get("audit.archive.lag").tag("scope", "platform").gauge().value()).isZero();
+    }
 }

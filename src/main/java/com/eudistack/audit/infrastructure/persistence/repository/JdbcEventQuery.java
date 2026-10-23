@@ -56,6 +56,7 @@ public final class JdbcEventQuery implements EventQueryPort {
     }
 
     @Override
+    @SuppressWarnings("java:S2077") // fragments are fixed literals; values are bound parameters
     public Optional<StoredEvent> findById(ReadScope scope, UUID eventId, Instant onlineFrom) {
         return pool.inTransaction(jdbc -> {
             for (TenantRef tenant : schemasOf(scope)) {
@@ -90,6 +91,7 @@ public final class JdbcEventQuery implements EventQueryPort {
         return merged.size() > spec.limit() + 1 ? List.copyOf(merged.subList(0, spec.limit() + 1)) : merged;
     }
 
+    @SuppressWarnings("java:S2077") // fragments are fixed literals; values are bound parameters
     private List<StoredEvent> findIn(JdbcClient jdbc, String schema, QuerySpec spec, CursorPosition after) {
         SearchPath.setLocal(jdbc, schema);
         StringBuilder where = new StringBuilder("occurred_at >= :from AND occurred_at < :to");

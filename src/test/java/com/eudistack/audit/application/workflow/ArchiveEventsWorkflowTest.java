@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ArchiveEventsWorkflowTest {
 
@@ -221,8 +222,43 @@ class ArchiveEventsWorkflowTest {
 
         Instant retainUntil = storage.lockedUntil(key).orElseThrow();
 
-        assertThat(retainUntil).isAfterOrEqualTo(old.recordedAt().atZone(ZoneOffset.UTC).plusYears(7).toInstant());
-        assertThat(retainUntil).isBefore(old.recordedAt().atZone(ZoneOffset.UTC).plusYears(7).plusDays(2).toInstant());
+        assertThat(retainUntil)
+                .isAfterOrEqualTo(old.recordedAt().atZone(ZoneOffset.UTC).plusYears(7).toInstant())
+                .isBefore(old.recordedAt().atZone(ZoneOffset.UTC).plusYears(7).plusDays(2).toInstant());
+    }
+
+    @Test
+    void run_refusesWhenAnEarlierEventsObjectHasDifferentBytes() {
+        AuditEvent old = recordedDaysAgo(91);
+        repository.add(RED, old);
+        LocalDate day = LocalDate.ofInstant(old.recordedAt(), ZoneOffset.UTC);
+        AuditEvent other = AuditEvent.fromValidatedJson(TestEvents.issuanceCompleted("red-logistica", "other", "9Z"))
+                .withRecordedAt(old.recordedAt());
+        storage.put(ArchiveFormat.eventsKey("red-logistica", day, 0), ArchiveFormat.eventsToGzip(List.of(other)),
+                "application/gzip", Instant.parse("2040-01-01T00:00:00Z"));
+
+        workflow.run();
+
+        assertThat(repository.ids(RED)).containsExactly(old.eventId());
+        assertThat(repository.outcomes).anySatisfy(e -> assertThat(e.reason()).isEqualTo("CopyMismatch"));
+    }
+
+    @Test
+    void storedManifest_comparesBytesByValue() {
+        ArchiveFormat.Manifest manifest = new ArchiveFormat.Manifest("red-logistica", LocalDate.parse("2026-01-01"),
+                0, 0, null, null, List.of(), NOW, NOW);
+        byte[] bytes = new byte[] {1, 2, 3};
+        ArchiveEventsWorkflow.StoredManifest left = new ArchiveEventsWorkflow.StoredManifest("k", bytes, manifest);
+        ArchiveEventsWorkflow.StoredManifest same = new ArchiveEventsWorkflow.StoredManifest("k",
+                new byte[] {1, 2, 3}, manifest);
+
+        assertThat(left.equals(left)).isTrue();
+        assertThat(left.equals("other")).isFalse();
+        assertThat(left).isEqualTo(same).isNotEqualTo(new ArchiveEventsWorkflow.StoredManifest("other", bytes, manifest));
+        assertThat(left.hashCode()).isEqualTo(same.hashCode());
+        assertThat(left.toString()).contains("k");
+        assertThatThrownBy(() -> ArchiveFormat.uncompressed(new byte[] {1, 2, 3}))
+                .isInstanceOf(java.io.UncheckedIOException.class);
     }
 
     /**

@@ -107,7 +107,7 @@ public class CoreConfiguration {
     @ConditionalOnAuditRole({AuditRole.WRITER, AuditRole.READER, AuditRole.ALL})
     public NimbusTokenVerifier tokenVerifier(AuditProperties properties, CallerClaims claims) {
         requireAudience(properties.getRole(), properties.getSecurity().getAudience());
-        return tokenVerifier(properties.getSecurity(), claims);
+        return nimbusVerifier(properties.getSecurity(), claims);
     }
 
     /**
@@ -124,7 +124,7 @@ public class CoreConfiguration {
      * @param jwks inline JWKS ({@code audit.security.jwks}, tests and local development) or, when absent,
      *             the remote JWKS of the Verifier ({@code audit.security.jwks-uri})
      */
-    public static NimbusTokenVerifier tokenVerifier(AuditProperties.Security security, CallerClaims claims) {
+    public static NimbusTokenVerifier nimbusVerifier(AuditProperties.Security security, CallerClaims claims) {
         return new NimbusTokenVerifier(jwkSource(security), security, claims);
     }
 

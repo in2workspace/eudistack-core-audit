@@ -81,8 +81,10 @@ class ColdStorageS3IT {
         String key = key();
         storage.put(key, "first".getBytes(StandardCharsets.UTF_8), "text/plain", retainUntil());
 
-        assertThatThrownBy(() -> storage.put(key, "second".getBytes(StandardCharsets.UTF_8), "text/plain",
-                retainUntil())).isInstanceOf(ColdStorageException.class)
+        byte[] second = "second".getBytes(StandardCharsets.UTF_8);
+        Instant until = retainUntil();
+        assertThatThrownBy(() -> storage.put(key, second, "text/plain", until))
+                .isInstanceOf(ColdStorageException.class)
                 .cause().isInstanceOfSatisfying(S3Exception.class, e -> assertThat(e.statusCode()).isEqualTo(412));
         assertThat(storage.get(key)).hasValueSatisfying(bytes ->
                 assertThat(new String(bytes, StandardCharsets.UTF_8)).isEqualTo("first"));
