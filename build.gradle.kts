@@ -67,7 +67,7 @@ dependencies {
     implementation("io.micrometer:micrometer-registry-otlp")
     // Logback → OTLP, as the Verifier: pinned to the release paired with the opentelemetry-api that
     // Boot 3.5.11 manages (the instrumentation BOM would override it).
-    implementation("io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0:2.15.0-alpha")
+    implementation("io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0:2.32.0-alpha")
 
     // --- DevTools ---
     compileOnly("org.projectlombok:lombok")
