@@ -162,14 +162,16 @@ class RecordEventsWorkflowTest {
         ObjectNode json = TestEvents.issuanceCompleted("red-logistica", "c-1", "holder-1");
         AuditEvent event = AuditEvent.fromValidatedJson(json);
         TenantRef tenant = TenantRef.forNewTenant("red-logistica");
-        byte[] hash = new byte[] {1, 2};
+        byte[] hash = {1, 2};
         RecordEventsWorkflow.ToStore left = new RecordEventsWorkflow.ToStore(json, event, tenant, hash);
         RecordEventsWorkflow.ToStore same = new RecordEventsWorkflow.ToStore(json.deepCopy(), event, tenant,
                 new byte[] {1, 2});
         RecordEventsWorkflow.ToStore different = new RecordEventsWorkflow.ToStore(json, event, tenant, new byte[] {9});
+        if (!left.equals(left) || left.equals("other")) {
+            throw new AssertionError("equals");
+        }
 
-        assertThat(left).isEqualTo(left).isEqualTo(same).isNotEqualTo(different).isNotEqualTo("other");
-        assertThat(left.hashCode()).isEqualTo(same.hashCode());
+        assertThat(left).isEqualTo(same).isNotEqualTo(different).hasSameHashCodeAs(same);
         assertThat(left.toString()).contains("ToStore");
     }
 }

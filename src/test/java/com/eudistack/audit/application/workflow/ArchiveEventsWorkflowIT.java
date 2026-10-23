@@ -6,7 +6,6 @@ import com.eudistack.audit.domain.model.ActorKind;
 import com.eudistack.audit.domain.model.AuditEvent;
 import com.eudistack.audit.domain.model.Caller;
 import com.eudistack.audit.domain.model.Power;
-import com.eudistack.audit.domain.model.TenantRef;
 import com.eudistack.audit.domain.policy.SelfEventFactory;
 import com.eudistack.audit.domain.port.out.AuditTelemetryPort;
 import com.eudistack.audit.domain.port.out.ColdStorageException;

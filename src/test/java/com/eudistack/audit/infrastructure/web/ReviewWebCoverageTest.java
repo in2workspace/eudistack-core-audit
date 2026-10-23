@@ -148,7 +148,7 @@ class ReviewWebCoverageTest {
     }
 
     @Test
-    void configuration_buildsTheFiltersAndRefusesAReaderWithoutACursorSecret() throws Exception {
+    void configuration_buildsTheFiltersAndRefusesAReaderWithoutACursorSecret() {
         AuditProperties properties = new AuditProperties();
         assertThat(properties.getWeb().getTrustedProxies()).isEmpty();
         WebConfiguration web = new WebConfiguration();
@@ -159,8 +159,8 @@ class ReviewWebCoverageTest {
         properties.setRole(AuditRole.ALL);
         assertThat(new ReaderConfiguration().cursorCodec(properties)).isNotNull();
         properties.setRole(AuditRole.READER);
-        assertThatThrownBy(() -> new ReaderConfiguration().cursorCodec(properties))
-                .isInstanceOf(IllegalStateException.class);
+        ReaderConfiguration readers = new ReaderConfiguration();
+        assertThatThrownBy(() -> readers.cursorCodec(properties)).isInstanceOf(IllegalStateException.class);
 
         properties.setRole(AuditRole.WRITER);
         properties.getSecurity().setAudience("https://audit.example");

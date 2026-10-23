@@ -63,15 +63,15 @@ class ReviewPathCoverageTest {
         ListEventsWorkflow workflow = new ListEventsWorkflow(guard, emptyQuery(), catalogue(),
                 new CursorCodec("0123456789abcdef0123456789abcdef".getBytes()), AuditTelemetryPort.noop(), CLOCK);
         QueryContext context = new QueryContext(READER, "red-logistica", "trace-1");
+        ListRequest badLimit = request(null, null, null, "abc");
+        ListRequest badDate = request("yesterday", null, null, null);
+        ListRequest valueWithoutPath = request(null, null, "needle", null);
+        ListRequest pathWithoutValue = requestWithPath();
 
-        assertThatThrownBy(() -> workflow.list(context, request(null, null, null, "abc")))
-                .isInstanceOf(BadRequestException.class);
-        assertThatThrownBy(() -> workflow.list(context, request("yesterday", null, null, null)))
-                .isInstanceOf(BadRequestException.class);
-        assertThatThrownBy(() -> workflow.list(context, request(null, null, "needle", null)))
-                .isInstanceOf(BadRequestException.class);
-        assertThatThrownBy(() -> workflow.list(context, requestWithPath()))
-                .isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> workflow.list(context, badLimit)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> workflow.list(context, badDate)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> workflow.list(context, valueWithoutPath)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> workflow.list(context, pathWithoutValue)).isInstanceOf(BadRequestException.class);
         assertThat(workflow.list(context, request(null, null, null, null)).events()).isEmpty();
         assertThat(selfEvents).isNotEmpty();
     }
@@ -83,8 +83,9 @@ class ReviewPathCoverageTest {
         ReadScope scope = guard.authorize(context, null, SelfEventFactory.OPERATION_LIST, filters);
         guard.recordGranted(context, scope, SelfEventFactory.OPERATION_LIST, filters, 0);
 
-        assertThatThrownBy(() -> guard.authorize(new QueryContext(READER, null, "trace-1"), null,
-                SelfEventFactory.OPERATION_LIST, filters)).isInstanceOf(TenantNotResolvedException.class);
+        QueryContext unresolved = new QueryContext(READER, null, "trace-1");
+        assertThatThrownBy(() -> guard.authorize(unresolved, null, SelfEventFactory.OPERATION_LIST, filters))
+                .isInstanceOf(TenantNotResolvedException.class);
         assertThat(selfEvents).hasSizeGreaterThanOrEqualTo(2);
     }
 

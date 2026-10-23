@@ -247,15 +247,17 @@ class ArchiveEventsWorkflowTest {
     void storedManifest_comparesBytesByValue() {
         ArchiveFormat.Manifest manifest = new ArchiveFormat.Manifest("red-logistica", LocalDate.parse("2026-01-01"),
                 0, 0, null, null, List.of(), NOW, NOW);
-        byte[] bytes = new byte[] {1, 2, 3};
+        byte[] bytes = {1, 2, 3};
         ArchiveEventsWorkflow.StoredManifest left = new ArchiveEventsWorkflow.StoredManifest("k", bytes, manifest);
         ArchiveEventsWorkflow.StoredManifest same = new ArchiveEventsWorkflow.StoredManifest("k",
                 new byte[] {1, 2, 3}, manifest);
+        if (!left.equals(left) || left.equals("other")) {
+            throw new AssertionError("equals");
+        }
 
-        assertThat(left.equals(left)).isTrue();
-        assertThat(left.equals("other")).isFalse();
-        assertThat(left).isEqualTo(same).isNotEqualTo(new ArchiveEventsWorkflow.StoredManifest("other", bytes, manifest));
-        assertThat(left.hashCode()).isEqualTo(same.hashCode());
+        assertThat(left).isEqualTo(same)
+                .isNotEqualTo(new ArchiveEventsWorkflow.StoredManifest("other", bytes, manifest))
+                .hasSameHashCodeAs(same);
         assertThat(left.toString()).contains("k");
         assertThatThrownBy(() -> ArchiveFormat.uncompressed(new byte[] {1, 2, 3}))
                 .isInstanceOf(java.io.UncheckedIOException.class);
