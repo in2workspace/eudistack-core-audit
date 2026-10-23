@@ -34,7 +34,7 @@ repositories {
 
 dependencyManagement {
     imports {
-        mavenBom("software.amazon.awssdk:bom:2.31.78")
+        mavenBom("software.amazon.awssdk:bom:2.56.0")
     }
 }
 
