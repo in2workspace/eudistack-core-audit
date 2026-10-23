@@ -1,6 +1,6 @@
 package com.eudistack.audit.infrastructure.storage;
 
-import com.eudistack.audit.domain.port.out.ColdStoragePort.ColdStorageException;
+import com.eudistack.audit.domain.port.out.ColdStorageException;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;

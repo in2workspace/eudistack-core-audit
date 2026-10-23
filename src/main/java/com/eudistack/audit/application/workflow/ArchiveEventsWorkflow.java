@@ -6,6 +6,7 @@ import com.eudistack.audit.domain.policy.CanonicalJson;
 import com.eudistack.audit.domain.policy.SelfEventFactory;
 import com.eudistack.audit.domain.port.out.ArchiveRepositoryPort;
 import com.eudistack.audit.domain.port.out.AuditTelemetryPort;
+import com.eudistack.audit.domain.port.out.ColdStorageException;
 import com.eudistack.audit.domain.port.out.ColdStoragePort;
 import com.eudistack.audit.domain.port.out.TenantDirectoryPort;
 
@@ -19,6 +20,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
@@ -114,7 +116,9 @@ public final class ArchiveEventsWorkflow {
         try {
             List<StoredManifest> existing = readManifests(tenant.tenantId(), day);
             Set<UUID> archived = new HashSet<>();
-            existing.forEach(m -> archived.addAll(m.manifest().eventIds()));
+            for (StoredManifest stored : existing) {
+                verifyEvents(stored.manifest()).forEach(event -> archived.add(event.eventId()));
+            }
             List<AuditEvent> pending = rows.stream().filter(e -> !archived.contains(e.eventId())).toList();
 
             StoredManifest manifest;
@@ -123,19 +127,23 @@ public final class ArchiveEventsWorkflow {
             } else {
                 manifest = existing.getLast();
             }
-            List<UUID> toDelete = rows.stream().map(AuditEvent::eventId)
-                    .filter(id -> archived.contains(id) || manifest.manifest().eventIds().contains(id))
-                    .toList();
-            AuditEvent record = selfEvents.archived(tenant.tenantId(), periodFrom, periodTo, toDelete.size(), null,
+            Set<UUID> verified = new HashSet<>(archived);
+            if (existing.stream().noneMatch(stored -> stored.key().equals(manifest.key()))) {
+                verifyEvents(manifest.manifest()).forEach(event -> verified.add(event.eventId()));
+            }
+            List<UUID> toDelete = rows.stream().map(AuditEvent::eventId).filter(verified::contains).toList();
+            requireLocks(existing, manifest, retainUntil(day));
+            AuditEvent archivedEvent = selfEvents.archived(new SelfEventFactory.ArchivedDay(
+                    tenant.tenantId(), periodFrom, periodTo, toDelete.size(), null,
                     storage.reference(manifest.key()), CanonicalJson.hashRef(CanonicalJson.sha256(manifest.bytes())),
-                    runId);
-            repository.deleteArchived(tenant, toDelete, record);
+                    runId));
+            repository.deleteArchived(tenant, toDelete, archivedEvent);
             telemetry.archiveRun(true);
             return new DayOutcome(tenant.tenantId(), day, Status.SUCCESS, toDelete.size(), null);
-        } catch (ColdStoragePort.ColdStorageException e) {
-            return fail(tenant, day, periodFrom, periodTo, rows.size(), "ColdStorageUnavailable", runId, e);
+        } catch (ColdStorageException e) {
+            return fail(new Failure(tenant, day, periodFrom, periodTo, rows.size(), "ColdStorageUnavailable", runId, e));
         } catch (CopyMismatchException | java.io.UncheckedIOException e) {
-            return fail(tenant, day, periodFrom, periodTo, rows.size(), "CopyMismatch", runId, e);
+            return fail(new Failure(tenant, day, periodFrom, periodTo, rows.size(), "CopyMismatch", runId, e));
         }
     }
 
@@ -146,9 +154,8 @@ public final class ArchiveEventsWorkflow {
         byte[] eventsBytes = null;
         if (!events.isEmpty()) {
             eventsKey = ArchiveFormat.eventsKey(tenantId, day, part);
-            eventsBytes = ArchiveFormat.eventsToGzip(events);
+            eventsBytes = putOnce(eventsKey, ArchiveFormat.eventsToGzip(events), "application/gzip", retainUntil);
             eventsHash = CanonicalJson.hashRef(CanonicalJson.sha256(eventsBytes));
-            putOnce(eventsKey, eventsBytes, "application/gzip", retainUntil);
         }
         ArchiveFormat.Manifest manifest = new ArchiveFormat.Manifest(tenantId, day, part, events.size(), eventsKey,
                 eventsHash, events.stream().map(AuditEvent::eventId).toList(), clock.instant(), retainUntil);
@@ -175,17 +182,27 @@ public final class ArchiveEventsWorkflow {
 
     /**
      * Writes an object unless a previous run already did. A run that stopped after the events object and
-     * before its manifest leaves that object locked: the retry finds it, checks that it holds exactly the
-     * same bytes (the format is deterministic) and goes on, instead of failing on the write-once guard
-     * every day from then on.
+     * before its manifest leaves that object locked: the retry keeps it when the uncompressed events are
+     * the same, even if the gzip wrapper differs, and returns those stored bytes so the manifest hash
+     * matches the object that stays in the bucket.
+     *
+     * @return the bytes stored for {@code key}
      */
-    private void putOnce(String key, byte[] content, String contentType, Instant retainUntil) {
+    private byte[] putOnce(String key, byte[] content, String contentType, Instant retainUntil) {
         Optional<byte[]> existing = storage.get(key);
         if (existing.isEmpty()) {
             storage.put(key, content, contentType, retainUntil);
-        } else if (!Arrays.equals(existing.get(), content)) {
-            throw new CopyMismatchException("an earlier run left a different object: " + key);
+            return content;
         }
+        byte[] stored = existing.get();
+        if (Arrays.equals(stored, content) || samePayload(stored, content)) {
+            return stored;
+        }
+        throw new CopyMismatchException("an earlier run left a different object: " + key);
+    }
+
+    private static boolean samePayload(byte[] storedGzip, byte[] newGzip) {
+        return Arrays.equals(ArchiveFormat.uncompressed(storedGzip), ArchiveFormat.uncompressed(newGzip));
     }
 
     private List<StoredManifest> readManifests(String tenantId, LocalDate day) {
@@ -195,7 +212,6 @@ public final class ArchiveEventsWorkflow {
         for (String key : keys) {
             byte[] bytes = storage.get(key).orElseThrow(() -> new CopyMismatchException("manifest vanished: " + key));
             ArchiveFormat.Manifest manifest = ArchiveFormat.manifestFromBytes(bytes);
-            verifyEvents(manifest);
             manifests.add(new StoredManifest(key, bytes, manifest));
         }
         manifests.sort((a, b) -> Integer.compare(a.manifest().part(), b.manifest().part()));
@@ -203,11 +219,12 @@ public final class ArchiveEventsWorkflow {
     }
 
     /**
-     * Checks that the events object of a manifest is there and has the hash the manifest declares.
+     * Checks that the events object of a manifest is there, has the hash the manifest declares, and
+     * contains exactly the event identifiers the manifest lists.
      */
     List<AuditEvent> verifyEvents(ArchiveFormat.Manifest manifest) {
         if (manifest.eventsKey() == null) {
-            if (manifest.eventCount() != 0) {
+            if (manifest.eventCount() != 0 || !manifest.eventIds().isEmpty()) {
                 throw new CopyMismatchException("manifest declares events but no object");
             }
             return List.of();
@@ -218,10 +235,27 @@ public final class ArchiveEventsWorkflow {
             throw new CopyMismatchException("hash mismatch: " + manifest.eventsKey());
         }
         List<AuditEvent> events = ArchiveFormat.eventsFromGzip(content);
-        if (events.size() != manifest.eventCount()) {
-            throw new CopyMismatchException("count mismatch: " + manifest.eventsKey());
+        Set<UUID> copied = new HashSet<>();
+        for (AuditEvent event : events) {
+            copied.add(event.eventId());
+        }
+        if (events.size() != manifest.eventCount() || !copied.equals(new HashSet<>(manifest.eventIds()))) {
+            throw new CopyMismatchException("the copy does not match the manifest: " + manifest.eventsKey());
         }
         return events;
+    }
+
+    private void requireLocks(List<StoredManifest> existing, StoredManifest manifest, Instant retainUntil) {
+        List<StoredManifest> trusted = new ArrayList<>(existing);
+        if (trusted.stream().noneMatch(stored -> stored.key().equals(manifest.key()))) {
+            trusted.add(manifest);
+        }
+        for (StoredManifest stored : trusted) {
+            requireLock(stored.key(), retainUntil);
+            if (stored.manifest().eventsKey() != null) {
+                requireLock(stored.manifest().eventsKey(), retainUntil);
+            }
+        }
     }
 
     private void requireLock(String key, Instant retainUntil) {
@@ -231,13 +265,20 @@ public final class ArchiveEventsWorkflow {
         }
     }
 
-    private DayOutcome fail(TenantRef tenant, LocalDate day, Instant from, Instant to, int count, String reason,
-                            String runId, RuntimeException cause) {
-        LOG.log(System.Logger.Level.ERROR, "Archiving of " + tenant.tenantId() + " " + day + " failed: " + reason,
-                cause);
-        repository.recordOutcome(selfEvents.archived(tenant.tenantId(), from, to, count, reason, null, null, runId));
+    private DayOutcome fail(Failure failure) {
+        LOG.log(System.Logger.Level.ERROR,
+                "Archiving of " + failure.tenant().tenantId() + " " + failure.day() + " failed: " + failure.reason(),
+                failure.cause());
+        repository.recordOutcome(selfEvents.archived(new SelfEventFactory.ArchivedDay(
+                failure.tenant().tenantId(), failure.from(), failure.to(), failure.count(), failure.reason(),
+                null, null, failure.runId())));
         telemetry.archiveRun(false);
-        return new DayOutcome(tenant.tenantId(), day, Status.FAILURE, count, reason);
+        return new DayOutcome(failure.tenant().tenantId(), failure.day(), Status.FAILURE, failure.count(),
+                failure.reason());
+    }
+
+    private record Failure(TenantRef tenant, LocalDate day, Instant from, Instant to, int count, String reason,
+                           String runId, RuntimeException cause) {
     }
 
     private void recordLag(TenantRef tenant) {
@@ -255,6 +296,29 @@ public final class ArchiveEventsWorkflow {
     }
 
     record StoredManifest(String key, byte[] bytes, ArchiveFormat.Manifest manifest) {
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof StoredManifest(String otherKey, byte[] otherBytes, ArchiveFormat.Manifest otherManifest))) {
+                return false;
+            }
+            return Objects.equals(key, otherKey)
+                    && Arrays.equals(bytes, otherBytes)
+                    && Objects.equals(manifest, otherManifest);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(key, Arrays.hashCode(bytes), manifest);
+        }
+
+        @Override
+        public String toString() {
+            return "StoredManifest[key=" + key + ", bytes=" + Arrays.toString(bytes) + ", manifest=" + manifest + "]";
+        }
     }
 
     static final class CopyMismatchException extends RuntimeException {

@@ -45,9 +45,8 @@ public final class QueryRateLimiter {
         long retryAfter = Math.max(1, Duration.between(now, window.plus(WINDOW)).toSeconds());
         Limits limits = caller.organization() == null ? defaults : overrides.getOrDefault(caller.organization(), defaults);
         boolean system = caller.isSystem();
-        String key = system
-                ? "system:" + (caller.organization() != null ? caller.organization() : caller.subject())
-                : "person:" + caller.subject();
+        String actor = caller.organization() != null ? caller.organization() : caller.subject();
+        String key = system ? "system:" + actor : "person:" + caller.subject();
         if (counters.hit(key, window) > (system ? limits.system() : limits.person())) {
             telemetry.rateLimited(system, false);
             throw new RateLimitedException(retryAfter);

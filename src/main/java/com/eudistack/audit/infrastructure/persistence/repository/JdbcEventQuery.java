@@ -51,7 +51,7 @@ public final class JdbcEventQuery implements EventQueryPort {
     public List<StoredEvent> find(ReadScope scope, QuerySpec spec) {
         return pool.inTransaction(jdbc -> switch (scope) {
             case ReadScope.SingleTenant single -> findIn(jdbc, single.tenant().schemaName(), spec, spec.after());
-            case ReadScope.AllTenants all -> findInAll(jdbc, spec);
+            case ReadScope.AllTenants _ -> findInAll(jdbc, spec);
         });
     }
 

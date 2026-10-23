@@ -1,5 +1,6 @@
 package com.eudistack.audit.support;
 
+import com.eudistack.audit.domain.port.out.ColdStorageException;
 import com.eudistack.audit.domain.port.out.ColdStoragePort;
 
 import java.time.Clock;

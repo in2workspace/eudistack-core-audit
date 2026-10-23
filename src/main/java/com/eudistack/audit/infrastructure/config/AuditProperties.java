@@ -39,7 +39,12 @@ public class AuditProperties {
         private String tenantHeader = "X-Tenant-Id";
         /** Environment suffixes stripped from the first host label ({@code sandbox-stg} → {@code sandbox}). */
         private List<String> environmentSuffixes = new ArrayList<>(List.of("-stg", "-dev", "-pre"));
-        /** Largest accepted request body. */
+        /**
+         * Addresses, as {@code HttpServletRequest.getRemoteAddr()} sees them, allowed to set
+         * {@code tenant-header}. Any other client is ignored and the tenant comes from the host.
+         */
+        private List<String> trustedProxies = new ArrayList<>();
+        /** Largest accepted write body. A missing or larger {@code Content-Length} is a 400. */
         private int maxBodyBytes = 5 * 1024 * 1024;
     }
 
@@ -56,8 +61,8 @@ public class AuditProperties {
          */
         private List<String> trustedIssuers = new ArrayList<>();
         /**
-         * Required {@code aud}. Empty: not enforced, until the Verifier emits an audience for this
-         * service (PO-12). Set it as soon as it does.
+         * Required {@code aud}. The writer and reader roles refuse to start when this is empty.
+         * Role {@code all} (local and CI) may leave it empty until the Verifier emits the audience (PO-12).
          */
         private String audience;
         private Duration clockSkew = Duration.ofSeconds(60);

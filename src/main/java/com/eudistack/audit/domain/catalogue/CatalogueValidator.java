@@ -28,9 +28,17 @@ import java.util.regex.Pattern;
  */
 public final class CatalogueValidator {
 
+    private static final String EVENT_TYPE = "event_type";
+    private static final String EVENT_VERSION = "event_version";
+    private static final String ACTOR = "actor";
+    private static final String ACTION = "action";
+    private static final String RESULT = "result";
+    private static final String REASON = "reason";
+    private static final String DETAILS = "details";
+
     static final Set<String> CANONICAL_FIELDS = Set.of(
-            "event_id", "event_type", "event_version", "occurred_at", "tenant", "organization", "source",
-            "actor", "action", "resource", "result", "reason", "correlation_id", "details");
+            "event_id", EVENT_TYPE, EVENT_VERSION, "occurred_at", "tenant", "organization", "source",
+            ACTOR, ACTION, "resource", RESULT, REASON, "correlation_id", DETAILS);
 
     private static final Pattern UUID_PATTERN = Pattern.compile(
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
@@ -53,18 +61,18 @@ public final class CatalogueValidator {
         if (nul.isPresent()) {
             return invalid(new Violation(nul.get(), "Must not contain the character U+0000"));
         }
-        String eventType = text(event, "event_type");
-        String eventVersion = text(event, "event_version");
+        String eventType = text(event, EVENT_TYPE);
+        String eventVersion = text(event, EVENT_VERSION);
         if (eventType == null || eventType.isBlank()) {
-            return invalid(new Violation("event_type", "Field is required and must be a string"));
+            return invalid(new Violation(EVENT_TYPE, "Field is required and must be a string"));
         }
         if (eventVersion == null || !SEMVER_PATTERN.matcher(eventVersion).matches()) {
-            return invalid(new Violation("event_version", "Field is required and must be a semantic version"));
+            return invalid(new Violation(EVENT_VERSION, "Field is required and must be a semantic version"));
         }
         Optional<EventTypeSpec> spec = catalogue.version(eventVersion).flatMap(v -> v.type(eventType));
         if (spec.isEmpty()) {
             return new ValidationResult.Invalid(RejectionReason.UNKNOWN_EVENT_TYPE, List.of(new Violation(
-                    "event_type", eventType + " " + eventVersion + " is not in the catalogue")));
+                    EVENT_TYPE, eventType + " " + eventVersion + " is not in the catalogue")));
         }
         CatalogueVersion version = catalogue.version(eventVersion).orElseThrow();
         List<Violation> violations = new ArrayList<>();
@@ -94,62 +102,62 @@ public final class CatalogueValidator {
         requireText(event, "resource", violations);
         requireText(event, "correlation_id", violations);
 
-        JsonNode actor = event.get("actor");
+        JsonNode actor = event.get(ACTOR);
         if (actor == null) {
-            violations.add(new Violation("actor", "Field is required"));
+            violations.add(new Violation(ACTOR, "Field is required"));
         } else if (!actor.isObject()) {
-            violations.add(new Violation("actor", "Field must be an object"));
+            violations.add(new Violation(ACTOR, "Field must be an object"));
         } else {
-            validateObject("actor", actor, version.actorFields(), new ConditionScope(actor, null, event),
+            validateObject(ACTOR, actor, version.actorFields(), new ConditionScope(actor, null, event),
                     "the actor type", violations);
         }
 
-        String action = text(event, "action");
+        String action = text(event, ACTION);
         if (action == null) {
-            violations.add(new Violation("action", "Field is required and must be a string"));
+            violations.add(new Violation(ACTION, "Field is required and must be a string"));
         } else if (!spec.action().equals(action)) {
-            violations.add(new Violation("action", spec.name() + " only allows the action " + spec.action()));
+            violations.add(new Violation(ACTION, spec.name() + " only allows the action " + spec.action()));
         }
 
         validateResultAndReason(event, spec, violations);
 
-        JsonNode details = event.get("details");
+        JsonNode details = event.get(DETAILS);
         if (details == null) {
-            violations.add(new Violation("details", "Field is required"));
+            violations.add(new Violation(DETAILS, "Field is required"));
         } else if (!details.isObject()) {
-            violations.add(new Violation("details", "Field must be an object"));
+            violations.add(new Violation(DETAILS, "Field must be an object"));
         } else {
-            validateObject("details", details, spec.details(), new ConditionScope(details, details, event),
+            validateObject(DETAILS, details, spec.details(), new ConditionScope(details, details, event),
                     declaredBy, violations);
         }
     }
 
     private static void validateResultAndReason(JsonNode event, EventTypeSpec spec, List<Violation> violations) {
-        String resultText = text(event, "result");
+        String resultText = text(event, RESULT);
         Optional<Result> result = Result.fromWire(resultText);
         if (result.isEmpty()) {
-            violations.add(new Violation("result", "Field is required and must be Success, Denied or Failure"));
+            violations.add(new Violation(RESULT, "Field is required and must be Success, Denied or Failure"));
             return;
         }
         if (!spec.results().contains(result.get())) {
-            violations.add(new Violation("result", spec.name() + " does not allow the result " + resultText));
+            violations.add(new Violation(RESULT, spec.name() + " does not allow the result " + resultText));
         }
-        JsonNode reasonNode = event.get("reason");
+        JsonNode reasonNode = event.get(REASON);
         if (result.get() == Result.SUCCESS) {
             if (reasonNode != null) {
-                violations.add(new Violation("reason", "Only allowed when result is not Success"));
+                violations.add(new Violation(REASON, "Only allowed when result is not Success"));
             }
             return;
         }
         if (reasonNode == null || !reasonNode.isTextual()) {
-            violations.add(new Violation("reason", "Required when result is not Success"));
+            violations.add(new Violation(REASON, "Required when result is not Success"));
             return;
         }
         Result determined = spec.reasons().get(reasonNode.asText());
         if (determined == null) {
-            violations.add(new Violation("reason", reasonNode.asText() + " is not a reason of " + spec.name()));
+            violations.add(new Violation(REASON, reasonNode.asText() + " is not a reason of " + spec.name()));
         } else if (determined != result.get()) {
-            violations.add(new Violation("reason", reasonNode.asText() + " determines the result "
+            violations.add(new Violation(REASON, reasonNode.asText() + " determines the result "
                     + determined.wireValue()));
         }
     }
@@ -178,11 +186,56 @@ public final class CatalogueValidator {
     private void validateValue(String path, FieldSpec field, JsonNode value, ConditionScope scope,
                                String declaredBy, List<Violation> violations) {
         String error = switch (field.type()) {
+            case OBJECT -> objectTypeError(path, field, value, scope, declaredBy, violations);
+            case ARRAY -> arrayTypeError(path, field, value, scope, declaredBy, violations);
+            default -> scalarError(field, value);
+        };
+        if (error != null) {
+            violations.add(new Violation(path, "Field " + error));
+        }
+    }
+
+    private String objectTypeError(String path, FieldSpec field, JsonNode value, ConditionScope scope,
+                                   String declaredBy, List<Violation> violations) {
+        if (!value.isObject()) {
+            return "must be an object";
+        }
+        validateObject(path, value, field.fields(), scope.nested(value), declaredBy, violations);
+        return null;
+    }
+
+    private String arrayTypeError(String path, FieldSpec field, JsonNode value, ConditionScope scope,
+                                  String declaredBy, List<Violation> violations) {
+        if (!value.isArray()) {
+            return "must be an array";
+        }
+        for (int i = 0; i < value.size(); i++) {
+            validateValue(path + "[" + i + "]", field.items(), value.get(i), scope, declaredBy, violations);
+        }
+        return null;
+    }
+
+    private static String scalarError(FieldSpec field, JsonNode value) {
+        return switch (field.type()) {
+            case STRING, BOOLEAN, INTEGER, DATE_TIME, URI -> textualError(field, value);
+            case EMAIL, UUID, SEMVER, ENUM, FREE_OBJECT -> formatError(field, value);
+            case OBJECT, ARRAY -> null;
+        };
+    }
+
+    private static String textualError(FieldSpec field, JsonNode value) {
+        return switch (field.type()) {
             case STRING -> value.isTextual() ? matchPattern(field, value) : "must be a string";
             case BOOLEAN -> value.isBoolean() ? null : "must be a boolean";
             case INTEGER -> value.isIntegralNumber() ? null : "must be an integer";
             case DATE_TIME -> value.isTextual() && isDateTime(value.asText()) ? null : "must be an RFC 3339 date-time";
             case URI -> value.isTextual() && isAbsoluteUri(value.asText()) ? null : "must be an absolute URI";
+            default -> null;
+        };
+    }
+
+    private static String formatError(FieldSpec field, JsonNode value) {
+        return switch (field.type()) {
             case EMAIL -> value.isTextual() && EMAIL_PATTERN.matcher(value.asText()).matches() ? null : "must be an email";
             case UUID -> value.isTextual() && UUID_PATTERN.matcher(value.asText()).matches() ? null : "must be a UUID";
             case SEMVER -> value.isTextual() && SEMVER_PATTERN.matcher(value.asText()).matches()
@@ -190,26 +243,8 @@ public final class CatalogueValidator {
             case ENUM -> value.isTextual() && field.values().contains(value.asText())
                     ? null : "must be one of " + field.values();
             case FREE_OBJECT -> value.isObject() ? null : "must be an object";
-            case OBJECT -> {
-                if (!value.isObject()) {
-                    yield "must be an object";
-                }
-                validateObject(path, value, field.fields(), scope.nested(value), declaredBy, violations);
-                yield null;
-            }
-            case ARRAY -> {
-                if (!value.isArray()) {
-                    yield "must be an array";
-                }
-                for (int i = 0; i < value.size(); i++) {
-                    validateValue(path + "[" + i + "]", field.items(), value.get(i), scope, declaredBy, violations);
-                }
-                yield null;
-            }
+            default -> null;
         };
-        if (error != null) {
-            violations.add(new Violation(path, "Field " + error));
-        }
     }
 
     private static String matchPattern(FieldSpec field, JsonNode value) {
@@ -255,7 +290,7 @@ public final class CatalogueValidator {
         try {
             OffsetDateTime.parse(text);
             return true;
-        } catch (DateTimeParseException e) {
+        } catch (DateTimeParseException _) {
             return false;
         }
     }
@@ -263,7 +298,7 @@ public final class CatalogueValidator {
     private static boolean isAbsoluteUri(String text) {
         try {
             return URI.create(text).isAbsolute();
-        } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException _) {
             return false;
         }
     }

@@ -66,7 +66,7 @@ public final class NimbusTokenVerifier implements TokenVerifier {
             claims = processor.process(SignedJWT.parse(bearerToken), null);
         } catch (KeySourceException e) {
             throw new ServiceUnavailableException("The Verifier JWKS is not available", e);
-        } catch (ParseException | BadJOSEException | JOSEException e) {
+        } catch (ParseException | BadJOSEException | JOSEException _) {
             throw new InvalidTokenException("The access token is not valid");
         }
         String issuer = claims.getIssuer();

@@ -25,15 +25,18 @@ public final class TenantResolutionFilter extends OncePerRequestFilter {
 
     private final String tenantHeader;
     private final List<String> environmentSuffixes;
+    private final List<String> trustedProxies;
 
-    public TenantResolutionFilter(String tenantHeader, List<String> environmentSuffixes) {
+    public TenantResolutionFilter(String tenantHeader, List<String> environmentSuffixes,
+                                  List<String> trustedProxies) {
         this.tenantHeader = tenantHeader == null || tenantHeader.isBlank() ? null : tenantHeader;
         this.environmentSuffixes = List.copyOf(environmentSuffixes);
+        this.trustedProxies = List.copyOf(trustedProxies);
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return ApiRequest.face(request) != ApiRequest.Face.READ;
+        return ApiRequest.currentFace(request) != ApiRequest.Face.READ;
     }
 
     @Override
@@ -44,7 +47,7 @@ public final class TenantResolutionFilter extends OncePerRequestFilter {
     }
 
     String resolve(HttpServletRequest request) {
-        String fromHeader = tenantHeader == null ? null : request.getHeader(tenantHeader);
+        String fromHeader = headerFromTrustedProxy(request);
         if (fromHeader != null && !fromHeader.isBlank()) {
             return clean(fromHeader);
         }
@@ -64,5 +67,12 @@ public final class TenantResolutionFilter extends OncePerRequestFilter {
             }
         }
         return LABEL.matcher(value).matches() ? value : null;
+    }
+
+    private String headerFromTrustedProxy(HttpServletRequest request) {
+        if (tenantHeader == null || !trustedProxies.contains(request.getRemoteAddr())) {
+            return null;
+        }
+        return request.getHeader(tenantHeader);
     }
 }

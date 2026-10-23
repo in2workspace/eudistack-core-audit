@@ -3,6 +3,7 @@ package com.eudistack.audit.application.workflow;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.eudistack.audit.domain.model.AuditEvent;
 import com.eudistack.audit.domain.model.TenantRef;
+import com.eudistack.audit.domain.policy.CanonicalJson;
 import com.eudistack.audit.domain.policy.SelfEventFactory;
 import com.eudistack.audit.domain.port.out.ArchiveRepositoryPort;
 import com.eudistack.audit.domain.port.out.AuditTelemetryPort;
@@ -84,6 +85,27 @@ class ArchiveEventsWorkflowTest {
     }
 
     @Test
+    void run_reusesEventsObjectWhenGzipWrapperDiffers_andHashesTheStoredBytes() {
+        AuditEvent old = recordedDaysAgo(91);
+        repository.add(RED, old);
+        LocalDate day = LocalDate.ofInstant(old.recordedAt(), ZoneOffset.UTC);
+        String key = ArchiveFormat.eventsKey("red-logistica", day, 0);
+        byte[] fresh = ArchiveFormat.eventsToGzip(List.of(old));
+        byte[] wrapped = fresh.clone();
+        wrapped[4] = 1;
+        storage.put(key, wrapped, "application/gzip", ArchiveEventsWorkflow.retainUntil(day));
+
+        workflow.run();
+
+        assertThat(repository.ids(RED)).isEmpty();
+        assertThat(storage.get(key).orElseThrow()).isEqualTo(wrapped);
+        String storedHash = CanonicalJson.hashRef(CanonicalJson.sha256(wrapped));
+        assertThat(ArchiveFormat.manifestFromBytes(storage.get(ArchiveFormat.manifestKey("red-logistica", day, 0))
+                .orElseThrow()).eventsHash()).isEqualTo(storedHash)
+                .isNotEqualTo(CanonicalJson.hashRef(CanonicalJson.sha256(fresh)));
+    }
+
+    @Test
     void run_interruptedBetweenEventsAndManifest_nextRunCompletesTheDay() {
         // The events object is locked as soon as it is written; a retry must reuse it, not try to rewrite it.
         AuditEvent old = recordedDaysAgo(91);
@@ -150,6 +172,43 @@ class ArchiveEventsWorkflowTest {
         assertThat(repository.ids(RED)).isEmpty();
         assertThat(ArchiveFormat.manifestFromBytes(storage.get(ArchiveFormat.manifestKey("red-logistica", day, 1))
                 .orElseThrow()).eventIds()).containsExactly(late.eventId());
+    }
+
+    @Test
+    void run_refusesToDeleteWhenAnExistingCopyIsNotLockedLongEnough() {
+        AuditEvent old = recordedDaysAgo(91);
+        repository.add(RED, old);
+        seedCopy(old, Instant.EPOCH, List.of(old.eventId()));
+
+        workflow.run();
+
+        assertThat(repository.ids(RED)).containsExactly(old.eventId());
+        assertThat(repository.outcomes).anySatisfy(e -> assertThat(e.reason()).isEqualTo("CopyMismatch"));
+    }
+
+    @Test
+    void run_refusesToDeleteWhenManifestIdsDoNotMatchTheCopy() {
+        AuditEvent old = recordedDaysAgo(91);
+        repository.add(RED, old);
+        LocalDate day = LocalDate.ofInstant(old.recordedAt(), ZoneOffset.UTC);
+        seedCopy(old, ArchiveEventsWorkflow.retainUntil(day), List.of(UUID.randomUUID()));
+
+        workflow.run();
+
+        assertThat(repository.ids(RED)).containsExactly(old.eventId());
+        assertThat(repository.outcomes).anySatisfy(e -> assertThat(e.reason()).isEqualTo("CopyMismatch"));
+    }
+
+    private void seedCopy(AuditEvent event, Instant lockedUntil, List<UUID> manifestIds) {
+        LocalDate day = LocalDate.ofInstant(event.recordedAt(), ZoneOffset.UTC);
+        byte[] gzip = ArchiveFormat.eventsToGzip(List.of(event));
+        String eventsKey = ArchiveFormat.eventsKey("red-logistica", day, 0);
+        storage.put(eventsKey, gzip, "application/gzip", lockedUntil);
+        ArchiveFormat.Manifest manifest = new ArchiveFormat.Manifest("red-logistica", day, 0, manifestIds.size(),
+                eventsKey, CanonicalJson.hashRef(CanonicalJson.sha256(gzip)), manifestIds, clock.instant(),
+                lockedUntil);
+        storage.put(ArchiveFormat.manifestKey("red-logistica", day, 0), ArchiveFormat.manifestToBytes(manifest),
+                "application/json", lockedUntil);
     }
 
     @Test

@@ -38,6 +38,7 @@ import java.util.Map;
 public class ReaderConfiguration {
 
     private static final Logger LOG = LoggerFactory.getLogger(ReaderConfiguration.class);
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     @Bean
     public QueryAccessGuard queryAccessGuard(TenantDirectoryJdbc directory,
@@ -62,7 +63,7 @@ public class ReaderConfiguration {
             }
             LOG.warn("audit.query.cursor-secret not set: using a random key, cursors only work on this process");
             byte[] random = new byte[32];
-            new SecureRandom().nextBytes(random);
+            RANDOM.nextBytes(random);
             return new CursorCodec(random);
         }
         return new CursorCodec(secret.getBytes(StandardCharsets.UTF_8));

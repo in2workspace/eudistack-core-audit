@@ -47,7 +47,7 @@ public final class MicrometerAuditTelemetry implements AuditTelemetryPort {
         Observation observation = Observation.createNotStarted(name, observations);
         attributes.forEach(observation::highCardinalityKeyValue);
         observation.start();
-        try (Observation.Scope scope = observation.openScope()) {
+        try (Observation.Scope _ = observation.openScope()) {
             T result = work.get();
             resultAttributes.apply(result).forEach(observation::highCardinalityKeyValue);
             return result;
@@ -106,7 +106,7 @@ public final class MicrometerAuditTelemetry implements AuditTelemetryPort {
 
     private static double maxLag(Map<String, Long> lags, boolean platform) {
         String prefix = platform ? "platform:" : "tenant:";
-        return lags.entrySet().stream().filter(e -> e.getKey().startsWith(prefix))
+        return (double) lags.entrySet().stream().filter(e -> e.getKey().startsWith(prefix))
                 .mapToLong(Map.Entry::getValue).max().orElse(0);
     }
 }

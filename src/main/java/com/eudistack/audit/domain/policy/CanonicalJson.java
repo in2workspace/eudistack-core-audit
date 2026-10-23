@@ -63,30 +63,9 @@ public final class CanonicalJson {
         if (node == null || node.isNull() || node.isMissingNode()) {
             out.append("null");
         } else if (node.isObject()) {
-            List<String> names = new ArrayList<>();
-            for (Iterator<String> it = node.fieldNames(); it.hasNext(); ) {
-                names.add(it.next());
-            }
-            names.sort(String::compareTo);
-            out.append('{');
-            for (int i = 0; i < names.size(); i++) {
-                if (i > 0) {
-                    out.append(',');
-                }
-                writeString(names.get(i), out);
-                out.append(':');
-                write(node.get(names.get(i)), out);
-            }
-            out.append('}');
+            writeObject(node, out);
         } else if (node.isArray()) {
-            out.append('[');
-            for (int i = 0; i < node.size(); i++) {
-                if (i > 0) {
-                    out.append(',');
-                }
-                write(node.get(i), out);
-            }
-            out.append(']');
+            writeArray(node, out);
         } else if (node.isTextual()) {
             writeString(node.asText(), out);
         } else if (node.isBoolean()) {
@@ -96,6 +75,35 @@ public final class CanonicalJson {
         } else {
             writeString(node.asText(), out);
         }
+    }
+
+    private static void writeObject(JsonNode node, StringBuilder out) {
+        List<String> names = new ArrayList<>();
+        for (Iterator<String> it = node.fieldNames(); it.hasNext(); ) {
+            names.add(it.next());
+        }
+        names.sort(String::compareTo);
+        out.append('{');
+        for (int i = 0; i < names.size(); i++) {
+            if (i > 0) {
+                out.append(',');
+            }
+            writeString(names.get(i), out);
+            out.append(':');
+            write(node.get(names.get(i)), out);
+        }
+        out.append('}');
+    }
+
+    private static void writeArray(JsonNode node, StringBuilder out) {
+        out.append('[');
+        for (int i = 0; i < node.size(); i++) {
+            if (i > 0) {
+                out.append(',');
+            }
+            write(node.get(i), out);
+        }
+        out.append(']');
     }
 
     private static void writeString(String value, StringBuilder out) {

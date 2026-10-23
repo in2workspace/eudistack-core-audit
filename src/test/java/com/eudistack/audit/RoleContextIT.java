@@ -31,6 +31,7 @@ class RoleContextIT {
                 "--management.otlp.metrics.export.enabled=false",
                 "--audit.security.jwks=" + TestTokens.publicJwks(),
                 "--audit.security.trusted-issuers=" + TestTokens.ISSUER_TEMPLATE,
+                "--audit.security.audience=https://audit.internal.test",
                 "--audit.query.cursor-secret=role-context-test-cursor-secret-012345",
                 "--audit.archive.storage=filesystem",
                 "--audit.archive.filesystem-root=build/role-cold-storage"));

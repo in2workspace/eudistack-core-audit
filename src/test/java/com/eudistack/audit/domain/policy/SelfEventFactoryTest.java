@@ -82,10 +82,12 @@ class SelfEventFactoryTest {
         TenantRef red = new TenantRef("red-logistica", "red_logistica");
         ObjectNode filters = JsonNodeFactory.instance.objectNode().put("event_type", "IssuanceCompleted");
 
-        assertConforms(factory.trailQueried(caller, red, "List", "red-logistica", filters, null, 4, "t"));
-        assertConforms(factory.trailQueried(caller, red, "Get", "red-logistica", null, "EventNotFound", null, "t"));
-        assertConforms(factory.trailQueried(caller, TenantRef.PLATFORM, "List", "platform", filters,
-                "TenantNotResolved", null, "t"));
+        assertConforms(factory.trailQueried(new SelfEventFactory.TrailQuery(
+                caller, red, "List", "red-logistica", filters, null, 4, "t")));
+        assertConforms(factory.trailQueried(new SelfEventFactory.TrailQuery(
+                caller, red, "Get", "red-logistica", null, "EventNotFound", null, "t")));
+        assertConforms(factory.trailQueried(new SelfEventFactory.TrailQuery(
+                caller, TenantRef.PLATFORM, "List", "platform", filters, "TenantNotResolved", null, "t")));
     }
 
     @Test
@@ -93,7 +95,9 @@ class SelfEventFactoryTest {
         Instant from = Instant.parse("2026-07-20T00:00:00Z");
         Instant to = Instant.parse("2026-07-21T00:00:00Z");
 
-        assertConforms(factory.archived("red-logistica", from, to, 12, null, "s3://b/k", "sha256:ab", "run-1"));
-        assertConforms(factory.archived("red-logistica", from, to, 12, "CopyMismatch", null, null, "run-1"));
+        assertConforms(factory.archived(new SelfEventFactory.ArchivedDay(
+                "red-logistica", from, to, 12, null, "s3://b/k", "sha256:ab", "run-1")));
+        assertConforms(factory.archived(new SelfEventFactory.ArchivedDay(
+                "red-logistica", from, to, 12, "CopyMismatch", null, null, "run-1")));
     }
 }

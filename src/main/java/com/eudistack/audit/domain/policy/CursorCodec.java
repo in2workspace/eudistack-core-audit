@@ -85,7 +85,7 @@ public final class CursorCodec {
                             node.hasNonNull("sc") ? node.get("sc").asText() : null));
         } catch (BadRequestException e) {
             throw e;
-        } catch (RuntimeException | java.io.IOException e) {
+        } catch (RuntimeException | java.io.IOException _) {
             throw invalid();
         }
     }

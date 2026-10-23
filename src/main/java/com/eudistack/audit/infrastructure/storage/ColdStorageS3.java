@@ -1,5 +1,6 @@
 package com.eudistack.audit.infrastructure.storage;
 
+import com.eudistack.audit.domain.port.out.ColdStorageException;
 import com.eudistack.audit.domain.port.out.ColdStoragePort;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -61,7 +62,7 @@ public final class ColdStorageS3 implements ColdStoragePort {
         try {
             return Optional.of(s3.getObjectAsBytes(GetObjectRequest.builder().bucket(bucket).key(key).build())
                     .asByteArray());
-        } catch (NoSuchKeyException e) {
+        } catch (NoSuchKeyException _) {
             return Optional.empty();
         } catch (SdkException e) {
             throw new ColdStorageException("Could not read " + key, e);

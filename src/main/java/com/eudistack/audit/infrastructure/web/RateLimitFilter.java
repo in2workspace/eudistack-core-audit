@@ -27,7 +27,7 @@ public final class RateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return ApiRequest.face(request) != ApiRequest.Face.READ || request.getAttribute(ApiRequest.CALLER) == null;
+        return ApiRequest.currentFace(request) != ApiRequest.Face.READ || request.getAttribute(ApiRequest.CALLER) == null;
     }
 
     @Override
