@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------
 
 # --- Stage 1: build --------------------------------------------------------
-FROM docker.io/gradle:9.7.1-jdk25 AS build
+FROM docker.io/gradle:9.8.2-jdk25 AS build
 WORKDIR /workspace
 COPY build.gradle.kts settings.gradle.kts ./
 COPY gradle ./gradle
