@@ -28,22 +28,31 @@ management:
       probes:
         enabled: true
   tracing:
+    enabled: ${MANAGEMENT_TRACING_ENABLED:true}
     sampling:
       probability: ${TRACING_SAMPLING_PROBABILITY:0.1}
     propagation:
       type: w3c,b3
   otlp:
     tracing:
-      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://otel-collector:4318/v1/traces}
+      # HTTP path stays unused in ECS: the task excludes OtlpTracingAutoConfiguration.
+      # Spans leave through OtlpGrpcTracingConfig on the gRPC endpoint below.
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://otel-collector:4318}/v1/traces
+      grpc:
+        enabled: ${MANAGEMENT_OTLP_GRPC_TRACING_ENABLED:false}
+        endpoint: ${OTEL_COLLECTOR_GRPC_URL:http://otel-collector:4317}
     metrics:
       export:
-        enabled: ${OTLP_METRICS_ENABLED:true}
-        url: ${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT:http://otel-collector:4318/v1/metrics}
+        enabled: ${MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED:false}
+        url: ${OTEL_COLLECTOR_GRPC_URL:http://otel-collector:4317}
         step: 30s
+        resource-attributes:
+          service.name: ${spring.application.name}
     logging:
-      endpoint: ${OTEL_EXPORTER_OTLP_LOGS_ENDPOINT:http://otel-collector:4318/v1/logs}
+      endpoint: ${OTEL_COLLECTOR_GRPC_URL:http://otel-collector:4317}
+      transport: ${MANAGEMENT_OTLP_LOGGING_TRANSPORT:grpc}
       export:
-        enabled: ${OTLP_LOGS_ENABLED:true}
+        enabled: ${MANAGEMENT_OTLP_LOGGING_EXPORT_ENABLED:false}
 
 logging:
   structured:

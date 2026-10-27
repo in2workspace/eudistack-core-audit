@@ -36,8 +36,8 @@ services:
       AUDIT_DB_URL: jdbc:postgresql://audit-db:5432/audit
       AUDIT_DB_MIGRATOR_PASSWORD: migrator
       AUDIT_PROVISIONER_TENANTS: sandbox,red-logistica
-      OTLP_METRICS_ENABLED: ${OTEL:-false}
-      OTLP_LOGS_ENABLED: ${OTEL:-false}
+      MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: "false"
+      MANAGEMENT_OTLP_LOGGING_EXPORT_ENABLED: "false"
     restart: "no"
 
   audit-api:
@@ -63,8 +63,12 @@ services:
       AUDIT_ARCHIVE_STORAGE: filesystem
       AUDIT_ARCHIVE_FILESYSTEMROOT: /tmp/cold-storage
       # Off unless OTEL=true (and TRACING_SAMPLING_PROBABILITY=1 to sample every trace; production: 0.1).
-      OTLP_METRICS_ENABLED: ${OTEL:-false}
-      OTLP_LOGS_ENABLED: ${OTEL:-false}
+      # gRPC to otel-collector:4317. The HTTP auto-config would also call :4318.
+      MANAGEMENT_OTLP_GRPC_TRACING_ENABLED: ${OTEL:-false}
+      MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: ${OTEL:-false}
+      MANAGEMENT_OTLP_LOGGING_EXPORT_ENABLED: ${OTEL:-false}
+      MANAGEMENT_OTLP_LOGGING_TRANSPORT: grpc
+      SPRING_AUTOCONFIGURE_EXCLUDE: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpTracingAutoConfiguration
       TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0}
       MANAGEMENT_OTLP_METRICS_EXPORT_STEP: 10s
     ports:
@@ -79,6 +83,7 @@ services:
     volumes:
       - ./dev-tools/otel/collector.yaml:/etc/otelcol/collector.yaml:ro
     ports:
+      - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
       - "8889:8889"   # metrics in Prometheus format
     depends_on:

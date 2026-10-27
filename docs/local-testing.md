@@ -303,8 +303,8 @@ curl -s -H "$W" -H "$(auth writer)" -H 'traceparent: 00-4bf92f3577b34da6a3ce929d
 # Zipkin → buscar el trace id 4bf92f3577b34da6a3ce929d0e0e4736
 ```
 
-En los entornos desplegados la API exporta a `http://otel-collector:4318` (traces, metrics y logs por OTLP HTTP,
-muestreo 0,1, paso de 30 s). Los endpoints se cambian con `OTEL_EXPORTER_OTLP_{TRACES,METRICS,LOGS}_ENDPOINT`.
+En los entornos desplegados la API exporta por gRPC a `http://otel-collector.<env>.eudistack.local:4317`
+(trazas, métricas y logs, muestreo 0,1, paso de 30 s). La URL se cambia con `OTEL_COLLECTOR_GRPC_URL`.
 
 ## 9. Matriz de criterios de aceptación
 
