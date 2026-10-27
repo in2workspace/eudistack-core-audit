@@ -65,6 +65,12 @@ dependencies {
     implementation("io.micrometer:micrometer-tracing-bridge-otel")
     implementation("io.opentelemetry:opentelemetry-exporter-otlp")
     implementation("io.micrometer:micrometer-registry-otlp")
+    // gRPC export to the collector (port 4317), same stack as issuer and verifier.
+    implementation("io.opentelemetry.proto:opentelemetry-proto:1.5.0-alpha")
+    implementation(platform("io.grpc:grpc-bom:1.69.0"))
+    implementation("io.grpc:grpc-netty-shaded")
+    implementation("io.grpc:grpc-stub")
+    implementation("io.grpc:grpc-protobuf")
     // Logback → OTLP, as the Verifier: pinned to the release paired with the opentelemetry-api that
     // Boot 3.5.11 manages (the instrumentation BOM would override it).
     implementation("io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0:2.15.0-alpha")
