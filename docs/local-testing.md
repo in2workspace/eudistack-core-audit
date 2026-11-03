@@ -18,7 +18,7 @@ curl -s localhost:8091/actuator/health  # {"status":"UP"} cuando está lista
 Con OpenTelemetry (§8), en lugar del `up` anterior:
 
 ```bash
-OTEL=true TRACING_SAMPLING_PROBABILITY=1 docker compose --profile observability up --build -d
+OTEL=true OTEL_SAMPLING_PROBABILITY=1 docker compose --profile observability up --build -d
 ```
 
 `compose.yaml` lee `dev-tools/local-tokens/audit-local.env`, así que la API confía en la clave local. Si
@@ -286,7 +286,7 @@ curl -s -i -H "$R" -H "$(auth auditor-red-logistica)" "$API/audit/api/v1/events?
 
 ## 8. OpenTelemetry
 
-Arranca con `OTEL=true TRACING_SAMPLING_PROBABILITY=1 docker compose --profile observability up --build -d`
+Arranca con `OTEL=true OTEL_SAMPLING_PROBABILITY=1 docker compose --profile observability up --build -d`
 (§1), haz unas cuantas peticiones de §3 y §4, y espera unos 15 segundos (los lotes de exportación):
 
 | Señal | Dónde se ve | Qué buscar (diseño §3.10) |

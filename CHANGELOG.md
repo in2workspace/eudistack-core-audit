@@ -6,6 +6,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed (observability)
+
+- **Observabilidad alineada con la Wallet EBW, la configuración de referencia.**
+- **Las trazas usan el exportador OTLP/gRPC nativo de Spring Boot** (`management.otlp.tracing.transport: grpc`). Los despliegues deben fijar `MANAGEMENT_OTLP_TRACING_EXPORT_ENABLED=true` y quitar `SPRING_AUTOCONFIGURE_EXCLUDE`, que apagaría este exportador, `MANAGEMENT_OTLP_GRPC_TRACING_ENABLED` y `OTEL_EXPORTER_OTLP_ENDPOINT`. Se retira `OtlpGrpcTracingConfig`.
+- **Muestreo con `OTEL_SAMPLING_PROBABILITY`**, 1,0 por defecto (antes `TRACING_SAMPLING_PROBABILITY`, 0,1). Paso de métricas de 5 s (antes 30 s) y propagación solo `w3c` (antes `w3c,b3`).
+- **Enmascarado de datos personales y secretos** en la consola JSON y en la exportación OTLP.
+- **Etiquetas `application` y `component`** en métricas y observaciones (`MicrometerMetricsConfig`, `ObservationConfig`). La etiqueta `tenant` queda pendiente.
+- `OpenTelemetryLogsInitializer` pasa a llamarse `OpenTelemetryAppenderInitializer`, como en los demás servicios, y el colector por defecto pasa a `http://127.0.0.1:4317`.
+
 ### Added
 
 - **EUD-244 — servicio API de auditoría**, según `technical-design.md` de la feature:

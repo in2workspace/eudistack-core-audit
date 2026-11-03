@@ -38,5 +38,5 @@ docker run -d --name "${CONTAINER_NAME}" --network host \
   -e AUDIT_ARCHIVE_FILESYSTEMROOT=/tmp/cold-storage \
   -e OTLP_METRICS_ENABLED=false \
   -e OTLP_LOGS_ENABLED=false \
-  -e TRACING_SAMPLING_PROBABILITY=0 \
+  -e OTEL_SAMPLING_PROBABILITY=0 \
   "${CONTAINER_IMAGE}"

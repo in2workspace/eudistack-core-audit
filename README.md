@@ -40,8 +40,8 @@ Una sola imagen; `AUDIT_ROLE` decide qué arranca:
 | `AUDIT_ARCHIVE_BUCKET`, `AWS_REGION`, `AUDIT_ARCHIVE_ENDPOINT` | Bucket S3 con Object Lock (Compliance) y SSE-KMS |
 | `AUDIT_PROVISIONER_TENANTS` | Tenants a provisionar (`sandbox,red-logistica`) |
 | `audit.query.rate-limit*`, `audit.query.rate-limit-overrides.<org>.*` | Límites de FR-18 y ampliaciones por organización |
-| `OTEL_COLLECTOR_GRPC_URL` | Collector OpenTelemetry por gRPC (por defecto `http://otel-collector:4317`) |
-| `TRACING_SAMPLING_PROBABILITY`, `MANAGEMENT_OTLP_GRPC_TRACING_ENABLED`, `MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED`, `MANAGEMENT_OTLP_LOGGING_EXPORT_ENABLED` | Muestreo de trazas (0,1) y exportación gRPC de trazas, métricas y logs |
+| `OTEL_COLLECTOR_GRPC_URL` | Collector OpenTelemetry por gRPC (por defecto `http://127.0.0.1:4317`) |
+| `OTEL_SAMPLING_PROBABILITY`, `MANAGEMENT_OTLP_TRACING_EXPORT_ENABLED`, `MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED`, `MANAGEMENT_OTLP_LOGGING_EXPORT_ENABLED` | Muestreo de trazas (1,0 por defecto) y exportación gRPC de trazas, métricas y logs |
 
 Los roles de base de datos, la base `audit`, el bucket y sus políticas los crea el IaC de plataforma; para local,
 [`dev-tools/db/init-roles.sql`](dev-tools/db/init-roles.sql).
@@ -55,7 +55,7 @@ Los roles de base de datos, la base `audit`, el bucket y sus políticas los crea
 | Solo integración (Testcontainers, requiere Docker) | `./gradlew integrationTest` |
 | Stack local (PostgreSQL + provisioner + API `all`) | `docker compose up --build` |
 | Tokens locales para probar a mano (sin Verifier) | `./gradlew devTokens` |
-| Stack local con OpenTelemetry (Collector + Zipkin) | `OTEL=true TRACING_SAMPLING_PROBABILITY=1 docker compose --profile observability up --build` |
+| Stack local con OpenTelemetry (Collector + Zipkin) | `OTEL=true OTEL_SAMPLING_PROBABILITY=1 docker compose --profile observability up --build` |
 
 En local la API escucha en `localhost:8090` (actuator en `8091`). La cara de escritura responde con
 `Host: audit.internal.localhost` y la de consulta con `Host: <tenant>.localhost`, p. ej.:

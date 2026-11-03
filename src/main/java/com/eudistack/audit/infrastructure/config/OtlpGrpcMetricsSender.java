@@ -10,10 +10,15 @@ import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.collector.metrics.v1.MetricsServiceGrpc;
 
 import java.net.URI;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Sends the OTLP metrics batch over gRPC: Micrometer's OTLP registry only speaks HTTP, and the
+ * OTel Collector is reached on its gRPC port (4317). One plaintext channel per collector address.
+ */
 public class OtlpGrpcMetricsSender implements OtlpMetricsSender {
 
     private final Map<String, ManagedChannel> channels = new ConcurrentHashMap<>();
@@ -26,8 +31,8 @@ public class OtlpGrpcMetricsSender implements OtlpMetricsSender {
         }
         URI uri = URI.create(address);
         String target = uri.getHost() + ":" + uri.getPort();
-        ManagedChannel channel = channels.computeIfAbsent(target, ignored ->
-                ManagedChannelBuilder.forTarget(ignored)
+        ManagedChannel channel = channels.computeIfAbsent(target, t ->
+                ManagedChannelBuilder.forTarget(t)
                         .usePlaintext()
                         .build()
         );
@@ -35,13 +40,11 @@ public class OtlpGrpcMetricsSender implements OtlpMetricsSender {
                 ExportMetricsServiceRequest.parseFrom(request.getMetricsData());
         Metadata metadata = new Metadata();
         for (Map.Entry<String, String> header : request.getHeaders().entrySet()) {
-            if (header.getKey().toLowerCase().endsWith("-bin")) {
+            String key = header.getKey().toLowerCase(Locale.ROOT);
+            if (key.endsWith("-bin")) {
                 throw new IllegalArgumentException("Binary gRPC metadata not supported: " + header.getKey());
             }
-            metadata.put(
-                    Metadata.Key.of(header.getKey().toLowerCase(), Metadata.ASCII_STRING_MARSHALLER),
-                    header.getValue()
-            );
+            metadata.put(Metadata.Key.of(key, Metadata.ASCII_STRING_MARSHALLER), header.getValue());
         }
         MetricsServiceGrpc.MetricsServiceBlockingStub stub =
                 MetricsServiceGrpc.newBlockingStub(channel)
@@ -52,8 +55,8 @@ public class OtlpGrpcMetricsSender implements OtlpMetricsSender {
         }
         try {
             stub.export(exportRequest);
-        } catch (StatusRuntimeException exception) {
-            throw new IllegalStateException("Failed to export metrics via OTLP/gRPC to " + address, exception);
+        } catch (StatusRuntimeException e) {
+            throw new IllegalStateException("Failed to export metrics via OTLP/gRPC to " + address, e);
         }
     }
 }
