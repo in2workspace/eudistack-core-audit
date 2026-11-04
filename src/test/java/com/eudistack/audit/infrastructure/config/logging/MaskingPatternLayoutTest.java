@@ -6,6 +6,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static com.eudistack.audit.infrastructure.config.logging.MaskingPatternLayout.REPLACEMENT;
@@ -73,18 +74,6 @@ class MaskingPatternLayoutTest {
         assertThat(result).isBlank();
     }
 
-    @Test
-    void mask_PlainTextWithNoSensitiveData_ReturnsUnchanged() {
-        // Arrange
-        String input = "Application started successfully on port 8080";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result).isEqualTo(input);
-    }
-
     // ─── mask() – Email ───────────────────────────────────────────────────────
 
     @Test
@@ -111,20 +100,6 @@ class MaskingPatternLayoutTest {
         assertThat(result)
                 .isEqualTo("User " + REPLACEMENT + " authenticated successfully")
                 .doesNotContain("admin@empresa.com");
-    }
-
-    @Test
-    void mask_EmailWithSubdomainAndPlusSuffix_MasksEmail() {
-        // Arrange
-        String input = "Sending email to john.doe+filter@mail.company.org";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result)
-                .contains(REPLACEMENT)
-                .doesNotContain("john.doe+filter@mail.company.org");
     }
 
     // ─── mask() – JWT ─────────────────────────────────────────────────────────
@@ -186,116 +161,22 @@ class MaskingPatternLayoutTest {
 
     // ─── mask() – Key=Value sensitive fields ─────────────────────────────────
 
-    @Test
-    void mask_TxCodeAsJsonField_MasksTxCodeValue() {
-        // Arrange
-        String input = "{\"tx_code\":\"ABC123\"}";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result)
+    @ParameterizedTest
+    @CsvSource(delimiterString = " | ", value = {
+            "Sending email to john.doe+filter@mail.company.org | john.doe+filter@mail.company.org",
+            "{\"tx_code\":\"ABC123\"} | ABC123",
+            "{\"access_token\":\"someAccessTokenValue\"} | someAccessTokenValue",
+            "{\"refresh_token\":\"someRefreshTokenValue\"} | someRefreshTokenValue",
+            "{\"password\":\"SuperSecret123!\"} | SuperSecret123!",
+            "{\"secret\":\"myAppSecret\"} | myAppSecret",
+            "{\"client_secret\":\"oauth2ClientSecret\"} | oauth2ClientSecret",
+            "POST /token password=p@ssw0rd&grant_type=password | p@ssw0rd",
+            "secret = mySecretValue loggedBySystem | mySecretValue"
+    })
+    void mask_SensitiveValue_MasksValue(String input, String sensitiveValue) {
+        assertThat(MaskingPatternLayout.mask(input))
                 .contains(REPLACEMENT)
-                .doesNotContain("ABC123");
-    }
-
-    @Test
-    void mask_AccessTokenAsJsonField_MasksAccessTokenValue() {
-        // Arrange
-        String input = "{\"access_token\":\"someAccessTokenValue\"}";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result)
-                .contains(REPLACEMENT)
-                .doesNotContain("someAccessTokenValue");
-    }
-
-    @Test
-    void mask_RefreshTokenAsJsonField_MasksRefreshTokenValue() {
-        // Arrange
-        String input = "{\"refresh_token\":\"someRefreshTokenValue\"}";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result)
-                .contains(REPLACEMENT)
-                .doesNotContain("someRefreshTokenValue");
-    }
-
-    @Test
-    void mask_PasswordAsJsonField_MasksPasswordValue() {
-        // Arrange
-        String input = "{\"password\":\"SuperSecret123!\"}";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result)
-                .contains(REPLACEMENT)
-                .doesNotContain("SuperSecret123!");
-    }
-
-    @Test
-    void mask_SecretAsJsonField_MasksSecretValue() {
-        // Arrange
-        String input = "{\"secret\":\"myAppSecret\"}";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result)
-                .contains(REPLACEMENT)
-                .doesNotContain("myAppSecret");
-    }
-
-    @Test
-    void mask_ClientSecretAsJsonField_MasksClientSecretValue() {
-        // Arrange
-        String input = "{\"client_secret\":\"oauth2ClientSecret\"}";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result)
-                .contains(REPLACEMENT)
-                .doesNotContain("oauth2ClientSecret");
-    }
-
-    @Test
-    void mask_PasswordAsQueryParam_MasksPasswordValue() {
-        // Arrange
-        String input = "POST /token password=p@ssw0rd&grant_type=password";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result)
-                .contains(REPLACEMENT)
-                .doesNotContain("p@ssw0rd");
-    }
-
-    @Test
-    void mask_SensitiveFieldWithSpacesAroundEquals_MasksValue() {
-        // Arrange
-        String input = "secret = mySecretValue loggedBySystem";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result)
-                .contains(REPLACEMENT)
-                .doesNotContain("mySecretValue");
+                .doesNotContain(sensitiveValue);
     }
 
     // ─── mask() – Realistic log scenarios ────────────────────────────────────
@@ -353,80 +234,6 @@ class MaskingPatternLayoutTest {
                 .doesNotContain("rT_abc123");
     }
 
-    // ─── mask() – False Positive Prevention ──────────────────────────────────
-
-    @Test
-    void mask_StandardUuid_NotMasked() {
-        // Arrange
-        String input = "Processing request with correlationId=550e8400-e29b-41d4-a716-446655440000";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result).isEqualTo(input);
-    }
-
-    @Test
-    void mask_UrlWithoutEmail_NotMasked() {
-        // Arrange
-        String input = "Calling external service at https://api.example.com/v1/resources";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result).isEqualTo(input);
-    }
-
-    @Test
-    void mask_WordGrantTypeContainingTokenSubstring_NotMasked() {
-        // Arrange
-        String input = "grant_type=authorization_code&redirect_uri=https://app.example.com/cb";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result).isEqualTo(input);
-    }
-
-    @Test
-    void mask_NormalWordPasswordless_NotMasked() {
-        // Arrange
-        String input = "Authentication strategy: passwordless via OTP";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result).isEqualTo(input);
-    }
-
-    @Test
-    void mask_JsonKeyNamedAccessTokenType_KeyNameNotMasked() {
-        // Arrange
-        String input = "{\"token_type\":\"Bearer\",\"expires_in\":3600}";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result).isEqualTo(input);
-    }
-
-    @Test
-    void mask_LogLevelAndThreadName_NotMasked() {
-        // Arrange
-        String input = "2025-01-01 12:00:00 INFO  [main] c.example.Service - Request processed in 45ms";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result).isEqualTo(input);
-    }
-
     // ─── doLayout() ───────────────────────────────────────────────────────────
 
     @Test
@@ -474,18 +281,6 @@ class MaskingPatternLayoutTest {
     }
 
     // ─── Regression: false-positive fixes ────────────────────────────────────
-
-    @Test
-    void mask_KeyNameContainingSecretAsSubstring_NotMasked() {
-        // Arrange – "notsecret=value": the word boundary must prevent matching 'secret' mid-word
-        String input = "notsecret=sensitiveValue";
-
-        // Act
-        String result = MaskingPatternLayout.mask(input);
-
-        // Assert
-        assertThat(result).isEqualTo(input);
-    }
 
     @Test
     void mask_PaddedJwtWithEqualsSign_MasksJwt() {
@@ -547,13 +342,21 @@ class MaskingPatternLayoutTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
+            "Application started successfully on port 8080",
+            "Processing request with correlationId=550e8400-e29b-41d4-a716-446655440000",
+            "Calling external service at https://api.example.com/v1/resources",
+            "grant_type=authorization_code&redirect_uri=https://app.example.com/cb",
+            "Authentication strategy: passwordless via OTP",
+            "{\"token_type\":\"Bearer\",\"expires_in\":3600}",
+            "2025-01-01 12:00:00 INFO  [main] c.example.Service - Request processed in 45ms",
+            "notsecret=sensitiveValue",
             "error_code=expired_code notsecret=value",
             "Failed to send a verification code: org.springframework.mail.MailSendException",
             "Failed to resolve name. status=Status{code=UNAVAILABLE, description=Unable to resolve host}",
             "{\"code\":\"invalid_request\"}",
             "eyJ.onlyone"
     })
-    void mask_LooksSensitiveButIsNot_ReturnsUnchanged(String input) {
+    void mask_NoSensitiveData_ReturnsUnchanged(String input) {
         assertThat(MaskingPatternLayout.mask(input)).isEqualTo(input);
     }
 }
