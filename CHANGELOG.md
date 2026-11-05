@@ -6,14 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Changed (observability)
+### Changed (EUD-26)
 
 - **Observabilidad alineada con la Wallet EBW, la configuración de referencia.**
 - **Las trazas usan el exportador OTLP/gRPC nativo de Spring Boot** (`management.otlp.tracing.transport: grpc`). Los despliegues deben fijar `MANAGEMENT_OTLP_TRACING_EXPORT_ENABLED=true` y quitar `SPRING_AUTOCONFIGURE_EXCLUDE`, que apagaría este exportador, `MANAGEMENT_OTLP_GRPC_TRACING_ENABLED` y `OTEL_EXPORTER_OTLP_ENDPOINT`. Se retira `OtlpGrpcTracingConfig`.
 - **Muestreo con `OTEL_SAMPLING_PROBABILITY`**, 1,0 por defecto (antes `TRACING_SAMPLING_PROBABILITY`, 0,1): diez veces más trazas en OpenObserve si el despliegue no fija la variable. Paso de métricas de 5 s (antes 30 s) y propagación solo `w3c` (antes `w3c,b3`).
 - **Enmascarado de datos personales y secretos** en la consola JSON y en la exportación OTLP, incluidos los correos codificados en URL (`%40`).
 - **Las excepciones y los pares clave-valor se enmascaran**, en la consola JSON y hacia OpenObserve. El mensaje, las causas y las excepciones suprimidas viajan enmascarados en `exception.type`, `exception.message` y `exception.stacktrace`, que dependen de `captureKeyValuePairAttributes`.
-- **Se enmascaran más valores**: claves con prefijo o en camelCase (`db_password`, `jwtSecret`, `vp_token`), `pre-authorized_code`, `txCode`, `pin`, `Authorization: Basic`, las disclosures y el JWT de key binding de un SD-JWT, los JWT sin firma y el valor completo cuando va entre comillas y lleva espacios. La regla del correo tiene longitudes acotadas, para que una entrada larga siga siendo lineal.
+- **Se enmascaran más valores**: claves con prefijo o en camelCase (`db_password`, `jwtSecret`, `vp_token`), `pre-authorized_code`, `txCode`, `pin`, `Authorization: Basic`, las disclosures y el JWT de key binding de un SD-JWT, los JWT sin firma y el valor completo cuando va entre comillas y lleva espacios. Los pares clave-valor numéricos se enmascaran por su clave. Los mensajes de más de 16 KB se truncan antes de enmascarar. Las reglas del correo, los JWT y `code` siguen siendo lineales con entradas largas.
 - **Etiquetas `application` y `component`** en métricas y observaciones (`MicrometerMetricsConfig`, `ObservationConfig`). La etiqueta `tenant` queda pendiente.
 - `OpenTelemetryLogsInitializer` pasa a llamarse `OpenTelemetryAppenderInitializer`, como en los demás servicios, y el colector por defecto pasa a `http://127.0.0.1:4317`.
 
