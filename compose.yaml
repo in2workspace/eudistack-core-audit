@@ -7,7 +7,7 @@
 # Writes need Host: audit.internal.localhost; queries Host: <tenant>.localhost (see README).
 #
 # OpenTelemetry (docs/local-testing.md §7): collector + Zipkin, and the API exporting everything:
-#   OTEL=true TRACING_SAMPLING_PROBABILITY=1 docker compose --profile observability up --build -d
+#   OTEL=true OTEL_SAMPLING_PROBABILITY=1 docker compose --profile observability up --build -d
 services:
   audit-db:
     image: postgres:17-alpine
@@ -62,15 +62,13 @@ services:
       AUDIT_QUERY_CURSOR_SECRET: local-cursor-secret-not-for-production-0001
       AUDIT_ARCHIVE_STORAGE: filesystem
       AUDIT_ARCHIVE_FILESYSTEMROOT: /tmp/cold-storage
-      # Off unless OTEL=true (and TRACING_SAMPLING_PROBABILITY=1 to sample every trace; production: 0.1).
-      # gRPC to otel-collector:4317. The HTTP auto-config would also call :4318.
-      MANAGEMENT_OTLP_GRPC_TRACING_ENABLED: ${OTEL:-false}
+      # Off unless OTEL=true (and OTEL_SAMPLING_PROBABILITY=1 to sample every trace).
+      OTEL_COLLECTOR_GRPC_URL: http://otel-collector:4317
+      MANAGEMENT_OTLP_TRACING_EXPORT_ENABLED: ${OTEL:-false}
       MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: ${OTEL:-false}
       MANAGEMENT_OTLP_LOGGING_EXPORT_ENABLED: ${OTEL:-false}
       MANAGEMENT_OTLP_LOGGING_TRANSPORT: grpc
-      SPRING_AUTOCONFIGURE_EXCLUDE: org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpTracingAutoConfiguration
-      TRACING_SAMPLING_PROBABILITY: ${TRACING_SAMPLING_PROBABILITY:-0}
-      MANAGEMENT_OTLP_METRICS_EXPORT_STEP: 10s
+      OTEL_SAMPLING_PROBABILITY: ${OTEL_SAMPLING_PROBABILITY:-0}
     ports:
       - "8090:8080"
       - "8091:8081"

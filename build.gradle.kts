@@ -62,6 +62,7 @@ dependencies {
     implementation("software.amazon.awssdk:apache-client")
 
     // --- Observability (OTLP native, no java agent — SAD §8.9) ---
+    implementation("org.springframework.boot:spring-boot-starter-aop")
     implementation("io.micrometer:micrometer-tracing-bridge-otel")
     implementation("io.opentelemetry:opentelemetry-exporter-otlp")
     implementation("io.micrometer:micrometer-registry-otlp")
