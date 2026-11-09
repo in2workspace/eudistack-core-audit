@@ -67,7 +67,7 @@ dependencies {
     implementation("io.micrometer:micrometer-registry-otlp")
     // gRPC export to the collector (port 4317), same stack as issuer and verifier.
     implementation("io.opentelemetry.proto:opentelemetry-proto:1.5.0-alpha")
-    implementation(platform("io.grpc:grpc-bom:1.69.0"))
+    implementation(platform("io.grpc:grpc-bom:1.85.1"))
     implementation("io.grpc:grpc-netty-shaded")
     implementation("io.grpc:grpc-stub")
     implementation("io.grpc:grpc-protobuf")
