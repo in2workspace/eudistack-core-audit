@@ -35,7 +35,7 @@ services:
       AUDIT_ROLE: provisioner
       AUDIT_DB_URL: jdbc:postgresql://audit-db:5432/audit
       AUDIT_DB_MIGRATOR_PASSWORD: migrator
-      AUDIT_PROVISIONER_TENANTS: sandbox,red-logistica
+      AUDIT_PROVISIONER_TENANTS: sandbox,red-logistica,cgcom,dome
       MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: "false"
       MANAGEMENT_OTLP_LOGGING_EXPORT_ENABLED: "false"
     restart: "no"

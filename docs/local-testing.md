@@ -11,7 +11,7 @@ En PowerShell las comillas y los acentos del JSON dan problemas: usa Git Bash.
 
 ```bash
 ./gradlew devTokens                     # clave local + tokens de cada perfil (12 h) en dev-tools/local-tokens/
-docker compose up --build -d            # PostgreSQL + provisioner (sandbox, red-logistica) + API (rol all)
+docker compose up --build -d            # PostgreSQL + provisioner (sandbox, red-logistica, cgcom, dome) + API (rol all)
 curl -s localhost:8091/actuator/health  # {"status":"UP"} cuando está lista
 ```
 
