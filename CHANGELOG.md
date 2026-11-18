@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-18
+
 ### Changed (EUD-26)
 
 - **Observabilidad alineada con la Wallet EBW, la configuración de referencia.**
