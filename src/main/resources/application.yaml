@@ -7,6 +7,9 @@ server:
   shutdown: graceful
 
 spring:
+  application:
+    # service.name of traces, metrics and logs. Deployments set OTEL_SERVICE_NAME.
+    name: ${OTEL_SERVICE_NAME:audit-core}
   threads:
     virtual:
       enabled: true
