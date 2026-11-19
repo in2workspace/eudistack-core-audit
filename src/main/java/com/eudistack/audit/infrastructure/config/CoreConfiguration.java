@@ -31,6 +31,7 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.text.ParseException;
 import java.time.Clock;
+import java.util.List;
 import java.util.stream.Stream;
 
 /**
@@ -103,9 +104,9 @@ public class CoreConfiguration {
     /**
      * Writer and reader must declare {@code audit.security.audience}. Role {@code all} may omit it.
      */
-    static void requireAudience(AuditRole role, String audience) {
+    static void requireAudience(AuditRole role, List<String> audience) {
         if ((role == AuditRole.WRITER || role == AuditRole.READER)
-                && (audience == null || audience.isBlank())) {
+                && (audience == null || audience.stream().allMatch(String::isBlank))) {
             throw new IllegalStateException("audit.security.audience is required for role " + role.name().toLowerCase());
         }
     }

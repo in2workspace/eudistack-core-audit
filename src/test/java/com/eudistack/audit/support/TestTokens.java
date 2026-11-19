@@ -65,6 +65,12 @@ public final class TestTokens {
                 .power("organization", "EUDISTACK", "System", "Administration").sign();
     }
 
+    /** The platform administrator holding the session of a tenant's portal: the tenant of the host he enters. */
+    public static String administratorOf(String tenant) {
+        return token().person("platform-admin").tenant(tenant).organization("VATES-EUDISTACK")
+                .power("organization", "EUDISTACK", "System", "Administration").sign();
+    }
+
     public static final class Builder {
 
         private final Map<String, Object> claims = new LinkedHashMap<>();

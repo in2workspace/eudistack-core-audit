@@ -61,10 +61,12 @@ public class AuditProperties {
          */
         private List<String> trustedIssuers = new ArrayList<>();
         /**
-         * Required {@code aud}. The writer and reader roles refuse to start when this is empty.
-         * Role {@code all} (local and CI) may leave it empty until the Verifier emits the audience (PO-12).
+         * Accepted {@code aud} values: the token must carry one of them. A value may hold {@code {tenant}},
+         * replaced by the tenant of the request host, e.g. {@code vc-auth-client-{tenant}}; on a request without
+         * tenant, such a value matches nothing. The writer and reader roles refuse to start when this is empty.
+         * Role {@code all} (local and CI) may leave it empty: {@code aud} is then not checked.
          */
-        private String audience;
+        private List<String> audience = new ArrayList<>();
         private Duration clockSkew = Duration.ofSeconds(60);
         private Duration jwksTimeout = Duration.ofSeconds(2);
     }
