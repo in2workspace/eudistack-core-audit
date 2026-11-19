@@ -85,6 +85,7 @@ public final class HostPolicyFilter extends OncePerRequestFilter {
         }
         if (request.getHeader(HttpHeaders.ORIGIN) != null) {
             telemetry.writeDenied("browser_origin");
+            RequestRejectionLog.clientError(403, "browser_origin");
             problems.write(response, ProblemMapper.problem("insufficient_permission", "Insufficient permission",
                     403, "Browser requests are not accepted on the internal endpoint", ApiRequest.path(request),
                     List.of()));
@@ -92,6 +93,7 @@ public final class HostPolicyFilter extends OncePerRequestFilter {
         }
         long length = request.getContentLengthLong();
         if (length < 0 || length > maxBodyBytes) {
+            RequestRejectionLog.clientError(400, "content_length");
             problems.write(response, ProblemMapper.problem("BAD_REQUEST", "The request is not valid", 400,
                     "The body must declare Content-Length and not exceed " + maxBodyBytes + " bytes",
                     ApiRequest.path(request), List.of()));
@@ -119,6 +121,7 @@ public final class HostPolicyFilter extends OncePerRequestFilter {
         if (allow != null) {
             response.setHeader(HttpHeaders.ALLOW, allow);
         }
+        RequestRejectionLog.clientError(405, "method_not_allowed");
         problems.write(response, ProblemMapper.problem("BAD_REQUEST", "Method not allowed", 405,
                 "This operation does not exist on this endpoint", null, List.of()));
     }

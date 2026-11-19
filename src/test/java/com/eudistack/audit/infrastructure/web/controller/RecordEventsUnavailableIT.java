@@ -1,6 +1,6 @@
 package com.eudistack.audit.infrastructure.web.controller;
 
-import com.zaxxer.hikari.HikariDataSource;
+import com.eudistack.audit.infrastructure.persistence.tenant.JdbcPool;
 import com.eudistack.audit.support.AuditIntegrationTest;
 import com.eudistack.audit.support.TestEvents;
 import com.eudistack.audit.support.TestTokens;
@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.test.annotation.DirtiesContext;
+
+import javax.sql.DataSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -24,12 +26,12 @@ class RecordEventsUnavailableIT extends AuditIntegrationTest {
 
     @Autowired
     @Qualifier("writerDataSource")
-    private HikariDataSource writerDataSource;
+    private DataSource writerDataSource;
 
     @Test
     void storeUnavailable_is503WithRetryAfter_andNothingStored() throws Exception {
         String correlation = correlation();
-        writerDataSource.close();
+        JdbcPool.close(writerDataSource);
 
         mvc.perform(write(TestEvents.batch(TestEvents.issuanceCompleted("red-logistica", correlation, "8H")),
                         TestTokens.writer()))

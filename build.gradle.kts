@@ -75,6 +75,9 @@ dependencies {
     // Logback → OTLP, as the Verifier: pinned to the release paired with the opentelemetry-api that
     // Boot 3.5.11 manages (the instrumentation BOM would override it).
     implementation("io.opentelemetry.instrumentation:opentelemetry-logback-appender-1.0:2.15.0-alpha")
+    // One span per SQL query, nested in the current Micrometer observation (OBS-10).
+    implementation("net.ttddyy.observation:datasource-micrometer-spring-boot:1.5.0")
+    implementation("net.ttddyy.observation:datasource-micrometer-opentelemetry:1.5.0")
 
     // --- DevTools ---
     compileOnly("org.projectlombok:lombok")

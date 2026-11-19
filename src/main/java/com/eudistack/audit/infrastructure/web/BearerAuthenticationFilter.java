@@ -73,9 +73,11 @@ public final class BearerAuthenticationFilter extends OncePerRequestFilter {
                     port.recordAuthenticationFailure(countEvents(request), traceIds.current());
                 }
             }
+            RequestRejectionLog.log(e);
             problems.write(request, response, e);
             return;
         } catch (AuditDomainException e) {
+            RequestRejectionLog.log(e);
             problems.write(request, response, e);
             return;
         }

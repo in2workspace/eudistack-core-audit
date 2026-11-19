@@ -6,6 +6,7 @@ import com.eudistack.audit.application.workflow.QueryRateLimiter;
 import com.eudistack.audit.domain.port.in.RecordEventsPort;
 import com.eudistack.audit.domain.port.out.AuditTelemetryPort;
 import com.eudistack.audit.infrastructure.security.NimbusTokenVerifier;
+import com.eudistack.audit.infrastructure.web.AccessLogFilter;
 import com.eudistack.audit.infrastructure.web.BearerAuthenticationFilter;
 import com.eudistack.audit.infrastructure.web.HostPolicyFilter;
 import com.eudistack.audit.infrastructure.web.NoStoreFilter;
@@ -19,6 +20,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.Filter;
 
 /**
@@ -40,6 +42,20 @@ public class WebConfiguration {
     @Bean
     public TraceIds traceIds(ObjectProvider<Tracer> tracer) {
         return new TraceIds(tracer);
+    }
+
+    /**
+     * Outside the API filters and inside the HTTP observation, so {@code traceId} is still in the MDC.
+     * {@code /*} on purpose: health is excluded by the filter itself.
+     */
+    @Bean
+    public FilterRegistrationBean<AccessLogFilter> accessLogFilter(AuditProperties properties) {
+        FilterRegistrationBean<AccessLogFilter> registration =
+                new FilterRegistrationBean<>(new AccessLogFilter(properties.getAccessLog()));
+        registration.addUrlPatterns("/*");
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
+        registration.setDispatcherTypes(DispatcherType.REQUEST);
+        return registration;
     }
 
     @Bean

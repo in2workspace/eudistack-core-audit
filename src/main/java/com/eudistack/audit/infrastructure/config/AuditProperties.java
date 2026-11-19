@@ -21,6 +21,7 @@ public class AuditProperties {
 
     private AuditRole role = AuditRole.ALL;
     private final Web web = new Web();
+    private final AccessLog accessLog = new AccessLog();
     private final Security security = new Security();
     private final Datasources datasource = new Datasources();
     private final DbRoles dbRoles = new DbRoles();
@@ -46,6 +47,19 @@ public class AuditProperties {
         private List<String> trustedProxies = new ArrayList<>();
         /** Largest accepted write body. A missing or larger {@code Content-Length} is a 400. */
         private int maxBodyBytes = 5 * 1024 * 1024;
+    }
+
+    /**
+     * One INFO line per API request, so a healthy process is visible in OpenObserve.
+     * Health checks are never logged. Status 4xx and 5xx are always logged; successful
+     * requests follow {@code sample}.
+     */
+    @Getter
+    @Setter
+    public static class AccessLog {
+        private boolean enabled = true;
+        /** Fraction of successful requests to log, from 0 to 1. Errors are not sampled. */
+        private double sample = 1.0;
     }
 
     @Getter

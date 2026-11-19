@@ -41,6 +41,8 @@ public class AuditExceptionHandler {
     public ResponseEntity<Problem> domain(AuditDomainException exception, HttpServletRequest request) {
         if (exception instanceof ServiceUnavailableException) {
             LOG.error("Audit store unavailable: {}", exception.getMessage(), exception.getCause());
+        } else {
+            RequestRejectionLog.log(exception);
         }
         ProblemMapper.Mapped mapped = problems.map(exception, ApiRequest.path(request));
         HttpHeaders headers = new HttpHeaders();

@@ -36,6 +36,7 @@ public final class RateLimitFilter extends OncePerRequestFilter {
         try {
             limiter.check((Caller) request.getAttribute(ApiRequest.CALLER), request.getParameter("details_path") != null);
         } catch (AuditDomainException e) {
+            RequestRejectionLog.log(e);
             problems.write(request, response, e);
             return;
         }

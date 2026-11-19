@@ -10,6 +10,7 @@ import com.eudistack.audit.domain.model.AuditEvent;
 import com.eudistack.audit.domain.model.Caller;
 import com.eudistack.audit.domain.model.EventBatch;
 import com.eudistack.audit.domain.model.EventOutcome;
+import com.eudistack.audit.domain.model.RecordStatus;
 import com.eudistack.audit.domain.model.RejectionReason;
 import com.eudistack.audit.domain.model.TenantRef;
 import com.eudistack.audit.domain.model.Violation;
@@ -22,6 +23,8 @@ import com.eudistack.audit.domain.port.out.AuditTelemetryPort;
 import com.eudistack.audit.domain.port.out.BatchWriter;
 import com.eudistack.audit.domain.port.out.SelfAuditPort;
 import com.eudistack.audit.domain.port.out.TenantDirectoryPort;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,6 +52,7 @@ import java.util.stream.Collectors;
 public final class RecordEventsWorkflow implements RecordEventsPort {
 
     private static final System.Logger LOG = System.getLogger(RecordEventsWorkflow.class.getName());
+    private static final Logger OPERATIONAL = LoggerFactory.getLogger(RecordEventsWorkflow.class);
 
     private final CatalogueValidator validator;
     private final TenantDirectoryPort directory;
@@ -90,6 +94,7 @@ public final class RecordEventsWorkflow implements RecordEventsPort {
             List<Prepared> prepared = batch.events().stream().map(this::prepare).toList();
             try {
                 List<EventOutcome> outcomes = repository.writeBatch(writer -> persist(writer, prepared, traceId));
+                logDuplicates(outcomes);
                 telemetry.batchRecorded("ok", System.nanoTime() - start);
                 outcomes.forEach(o -> telemetry.eventRecorded(o.status().wireValue(),
                         o.reason() == null ? "none" : o.reason().errorType()));
@@ -150,6 +155,13 @@ public final class RecordEventsWorkflow implements RecordEventsPort {
             });
         }
         return outcomes;
+    }
+
+    static void logDuplicates(List<EventOutcome> outcomes) {
+        long duplicates = outcomes.stream().filter(outcome -> outcome.status() == RecordStatus.DUPLICATE).count();
+        if (duplicates > 0) {
+            OPERATIONAL.atInfo().addKeyValue("duplicates", duplicates).log("idempotent duplicates");
+        }
     }
 
     private EventOutcome store(BatchWriter writer, ToStore store, String traceId) {
