@@ -29,6 +29,7 @@ public class AuditProperties {
     private final Archive archive = new Archive();
     private final Provisioner provisioner = new Provisioner();
     private final Recover recover = new Recover();
+    private final AccessLog accessLog = new AccessLog();
 
     @Getter
     @Setter
@@ -152,6 +153,20 @@ public class AuditProperties {
     public static class Provisioner {
         /** Tenants to provision, in addition to {@code platform}. */
         private List<String> tenants = new ArrayList<>();
+    }
+
+    /**
+     * Operational access log (decisión propia, fase 1). Production default: errors and slow calls
+     * only; fast successful calls are not sampled.
+     */
+    @Getter
+    @Setter
+    public static class AccessLog {
+        private boolean enabled = true;
+        /** A call at least this slow is logged even when it succeeds. */
+        private Duration slowThreshold = Duration.ofMillis(500);
+        /** Fraction of the remaining calls (fast 2xx and 3xx) that are logged. 0 logs none of them. */
+        private double successSampleRate = 0.0;
     }
 
     @Getter

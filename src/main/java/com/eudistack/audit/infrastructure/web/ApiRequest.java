@@ -23,6 +23,13 @@ public final class ApiRequest {
     public static final String CALLER = "audit.caller";
     public static final String HOST_TENANT = "audit.hostTenant";
     public static final String FACE = "audit.face";
+    /**
+     * Set when this request already produced its security WARN, so the access log does not add a
+     * second line.
+     */
+    public static final String SECURITY_LOGGED = "audit.securityLogged";
+    /** Problem {@code type} of design §3.9, when a filter or the handler has already classified the rejection. */
+    public static final String PROBLEM_TYPE = "audit.problemType";
     public static final String COLLECTION = "/api/v1/events";
     public static final String PREFIX = "/audit";
 
