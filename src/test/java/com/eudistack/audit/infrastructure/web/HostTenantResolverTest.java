@@ -1,18 +1,25 @@
 package com.eudistack.audit.infrastructure.web;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @DisplayName("HostTenantResolver")
 class HostTenantResolverTest {
 
     private static final String TRUSTED_PROXY = "10.0.0.8";
+    private static final String UNTRUSTED_CLIENT = "203.0.113.4";
 
     private final HostTenantResolver resolver = new HostTenantResolver(
             "X-Tenant-Id", List.of("-stg", "-dev", "-pre"), List.of(TRUSTED_PROXY));
@@ -29,37 +36,29 @@ class HostTenantResolverTest {
     @DisplayName("from the host")
     class FromTheHost {
 
-        @Test
-        @DisplayName("resolve_tenantHost_isTheFirstLabel")
-        void resolve_tenantHost_isTheFirstLabel() {
+        @ParameterizedTest(name = "{0} is the tenant {1}")
+        @CsvSource({
+                "red-logistica.stg.eudistack.net, red-logistica",
+                "Sandbox-STG.eudistack.net, sandbox",
+                "sandbox.eudistack.net, sandbox"})
+        @DisplayName("resolve_hostWithATenantLabel_isTheTenant")
+        void resolve_hostWithATenantLabel_isTheTenant(String host, String expected) {
             // Arrange
-            MockHttpServletRequest request = request("red-logistica.stg.eudistack.net", "203.0.113.4");
+            MockHttpServletRequest request = request(host, UNTRUSTED_CLIENT);
 
             // Act
             String tenant = resolver.resolve(request);
 
             // Assert
-            assertThat(tenant).isEqualTo("red-logistica");
+            assertThat(tenant).isEqualTo(expected);
         }
 
-        @Test
-        @DisplayName("resolve_environmentSuffixInTheLabel_isStripped")
-        void resolve_environmentSuffixInTheLabel_isStripped() {
+        @ParameterizedTest(name = "{0} has no tenant")
+        @ValueSource(strings = {"10.1.2.3", "[::1]", "localhost", "bad_tenant.stg.eudistack.net", "-stg.eudistack.net"})
+        @DisplayName("resolve_hostWithoutATenant_isNull")
+        void resolve_hostWithoutATenant_isNull(String host) {
             // Arrange
-            MockHttpServletRequest request = request("Sandbox-STG.eudistack.net", "203.0.113.4");
-
-            // Act
-            String tenant = resolver.resolve(request);
-
-            // Assert
-            assertThat(tenant).isEqualTo("sandbox");
-        }
-
-        @Test
-        @DisplayName("resolve_ipAddress_isNull")
-        void resolve_ipAddress_isNull() {
-            // Arrange
-            MockHttpServletRequest request = request("10.1.2.3", "203.0.113.4");
+            MockHttpServletRequest request = request(host, UNTRUSTED_CLIENT);
 
             // Act
             String tenant = resolver.resolve(request);
@@ -69,23 +68,11 @@ class HostTenantResolverTest {
         }
 
         @Test
-        @DisplayName("resolve_hostWithoutDot_isNull")
-        void resolve_hostWithoutDot_isNull() {
+        @DisplayName("resolve_requestWithoutServerName_isNull")
+        void resolve_requestWithoutServerName_isNull() {
             // Arrange
-            MockHttpServletRequest request = request("localhost", "203.0.113.4");
-
-            // Act
-            String tenant = resolver.resolve(request);
-
-            // Assert
-            assertThat(tenant).isNull();
-        }
-
-        @Test
-        @DisplayName("resolve_labelThatIsNotAValidTenant_isNull")
-        void resolve_labelThatIsNotAValidTenant_isNull() {
-            // Arrange
-            MockHttpServletRequest request = request("bad_tenant.stg.eudistack.net", "203.0.113.4");
+            HttpServletRequest request = mock(HttpServletRequest.class);
+            when(request.getRemoteAddr()).thenReturn(UNTRUSTED_CLIENT);
 
             // Act
             String tenant = resolver.resolve(request);
@@ -103,7 +90,7 @@ class HostTenantResolverTest {
         @DisplayName("resolve_headerFromAnUntrustedClient_isIgnored")
         void resolve_headerFromAnUntrustedClient_isIgnored() {
             // Arrange
-            MockHttpServletRequest request = request("red-logistica.stg.eudistack.net", "203.0.113.4");
+            MockHttpServletRequest request = request("red-logistica.stg.eudistack.net", UNTRUSTED_CLIENT);
 
             // Act
             String tenant = resolver.resolve(request);
@@ -125,11 +112,26 @@ class HostTenantResolverTest {
             assertThat(tenant).isEqualTo("sandbox");
         }
 
-        @Test
+        @ParameterizedTest(name = "header name \"{0}\" never reads the header")
+        @ValueSource(strings = {"  ", ""})
         @DisplayName("resolve_blankHeaderName_neverReadsTheHeader")
-        void resolve_blankHeaderName_neverReadsTheHeader() {
+        void resolve_blankHeaderName_neverReadsTheHeader(String headerName) {
             // Arrange
-            HostTenantResolver ignoringHeader = new HostTenantResolver("  ", List.of("-stg"), List.of(TRUSTED_PROXY));
+            HostTenantResolver ignoringHeader = new HostTenantResolver(headerName, List.of("-stg"), List.of(TRUSTED_PROXY));
+            MockHttpServletRequest request = request("red-logistica.stg.eudistack.net", TRUSTED_PROXY);
+
+            // Act
+            String tenant = ignoringHeader.resolve(request);
+
+            // Assert
+            assertThat(tenant).isEqualTo("red-logistica");
+        }
+
+        @Test
+        @DisplayName("resolve_noHeaderName_neverReadsTheHeader")
+        void resolve_noHeaderName_neverReadsTheHeader() {
+            // Arrange
+            HostTenantResolver ignoringHeader = new HostTenantResolver(null, List.of("-stg"), List.of(TRUSTED_PROXY));
             MockHttpServletRequest request = request("red-logistica.stg.eudistack.net", TRUSTED_PROXY);
 
             // Act
@@ -146,6 +148,20 @@ class HostTenantResolverTest {
             MockHttpServletRequest request = request("red-logistica.stg.eudistack.net", TRUSTED_PROXY);
             request.removeHeader("X-Tenant-Id");
             request.addHeader("X-Tenant-Id", " ");
+
+            // Act
+            String tenant = resolver.resolve(request);
+
+            // Assert
+            assertThat(tenant).isEqualTo("red-logistica");
+        }
+
+        @Test
+        @DisplayName("resolve_trustedProxyWithoutHeader_fallsBackToTheHost")
+        void resolve_trustedProxyWithoutHeader_fallsBackToTheHost() {
+            // Arrange
+            MockHttpServletRequest request = request("red-logistica.stg.eudistack.net", TRUSTED_PROXY);
+            request.removeHeader("X-Tenant-Id");
 
             // Act
             String tenant = resolver.resolve(request);

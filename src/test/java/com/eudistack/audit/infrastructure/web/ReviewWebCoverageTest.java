@@ -20,6 +20,7 @@ import com.eudistack.audit.infrastructure.config.ReaderConfiguration;
 import com.eudistack.audit.infrastructure.config.WebConfiguration;
 import com.eudistack.audit.infrastructure.persistence.repository.TenantDirectoryJdbc;
 import com.eudistack.audit.infrastructure.security.CallerClaims;
+import com.eudistack.audit.infrastructure.security.NimbusTokenVerifier;
 import com.eudistack.audit.infrastructure.storage.FileSystemColdStorage;
 import com.eudistack.audit.infrastructure.web.controller.EventsQueryController;
 import com.eudistack.audit.infrastructure.web.controller.EventsWriteController;
@@ -166,7 +167,11 @@ class ReviewWebCoverageTest {
         properties.getSecurity().setAudience(List.of("https://audit.example"));
         properties.getSecurity().setJwks(TestTokens.publicJwks());
         properties.getSecurity().setTrustedIssuers(List.of("https://{tenant}.example.test/verifier"));
-        assertThat(new CoreConfiguration().tokenVerifier(properties, new CallerClaims(List.of("-stg")))).isNotNull();
+        NimbusTokenVerifier verifier = new CoreConfiguration().tokenVerifier(properties, new CallerClaims(List.of("-stg")));
+        assertThat(verifier).isNotNull();
+        assertThat(web.bearerAuthenticationFilter(verifier, empty(), new ProblemMapper(new ObjectMapper()),
+                new TraceIds(empty()), new ObjectMapper(), web.hostTenantResolver(properties), properties).getFilter())
+                .isNotNull();
     }
 
     @Test

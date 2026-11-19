@@ -13,12 +13,15 @@ class AudienceRequirementTest {
 
     @Test
     void writerAndReaderRequireAnAudience() {
+        List<String> blank = List.of(" ");
+        List<String> configured = List.of("https://audit.example");
+
         assertThatThrownBy(() -> CoreConfiguration.requireAudience(AuditRole.WRITER, null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("audit.security.audience");
-        assertThatThrownBy(() -> CoreConfiguration.requireAudience(AuditRole.READER, List.of(" ")))
+        assertThatThrownBy(() -> CoreConfiguration.requireAudience(AuditRole.READER, blank))
                 .isInstanceOf(IllegalStateException.class);
-        assertThatCode(() -> CoreConfiguration.requireAudience(AuditRole.WRITER, List.of("https://audit.example")))
+        assertThatCode(() -> CoreConfiguration.requireAudience(AuditRole.WRITER, configured))
                 .doesNotThrowAnyException();
         assertThatCode(() -> CoreConfiguration.requireAudience(AuditRole.ALL, null)).doesNotThrowAnyException();
         assertThatCode(() -> CoreConfiguration.requireAudience(AuditRole.ARCHIVER, null)).doesNotThrowAnyException();

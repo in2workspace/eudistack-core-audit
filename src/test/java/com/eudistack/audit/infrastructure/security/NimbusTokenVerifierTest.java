@@ -16,6 +16,8 @@ import com.nimbusds.jose.proc.SecurityContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.text.ParseException;
 import java.time.Duration;
@@ -67,42 +69,47 @@ class NimbusTokenVerifierTest {
     }
 
     @Test
-    void verify_foreignSignature_isInvalid() {
+    void verify_foreignSignature_isInvalid() throws Exception {
+        NimbusTokenVerifier verifier = verifier(List.of());
         String token = TestTokens.token().person("p").tenant("sandbox").signedWithForeignKey().sign();
 
-        assertThatThrownBy(() -> verifier(List.of()).verify(token, null)).isInstanceOf(InvalidTokenException.class);
+        assertThatThrownBy(() -> verifier.verify(token, null)).isInstanceOf(InvalidTokenException.class);
     }
 
     @Test
-    void verify_expired_isInvalid() {
+    void verify_expired_isInvalid() throws Exception {
+        NimbusTokenVerifier verifier = verifier(List.of());
         String token = TestTokens.token().person("p").tenant("sandbox")
                 .expiresAt(Instant.now().minus(Duration.ofMinutes(5))).sign();
 
-        assertThatThrownBy(() -> verifier(List.of()).verify(token, null)).isInstanceOf(InvalidTokenException.class);
+        assertThatThrownBy(() -> verifier.verify(token, null)).isInstanceOf(InvalidTokenException.class);
     }
 
     @Test
-    void verify_untrustedIssuer_isInvalid() {
+    void verify_untrustedIssuer_isInvalid() throws Exception {
+        NimbusTokenVerifier verifier = verifier(List.of());
         String token = TestTokens.token().person("p").tenant("sandbox").issuer("evil.example.com/x").sign();
 
-        assertThatThrownBy(() -> verifier(List.of()).verify(token, null)).isInstanceOf(InvalidTokenException.class);
+        assertThatThrownBy(() -> verifier.verify(token, null)).isInstanceOf(InvalidTokenException.class);
     }
 
     @Test
-    void verify_notAJwt_isInvalid() {
-        assertThatThrownBy(() -> verifier(List.of()).verify("not-a-token", null)).isInstanceOf(InvalidTokenException.class);
+    void verify_notAJwt_isInvalid() throws Exception {
+        NimbusTokenVerifier verifier = verifier(List.of());
+
+        assertThatThrownBy(() -> verifier.verify("not-a-token", null)).isInstanceOf(InvalidTokenException.class);
     }
 
     @Test
     void verify_audienceConfigured_requiresIt() throws Exception {
         NimbusTokenVerifier verifier = verifier(List.of("audit-api"));
+        String right = TestTokens.token().person("p").tenant("sandbox").audience("audit-api").sign();
+        String missing = TestTokens.token().person("p").tenant("sandbox").sign();
+        String other = TestTokens.token().person("p").tenant("sandbox").audience("issuer-api").sign();
 
-        assertThat(verifier.verify(TestTokens.token().person("p").tenant("sandbox").audience("audit-api").sign(), null))
-                .isNotNull();
-        assertThatThrownBy(() -> verifier.verify(TestTokens.token().person("p").tenant("sandbox").sign(), null))
-                .isInstanceOf(InvalidTokenException.class);
-        assertThatThrownBy(() -> verifier.verify(TestTokens.token().person("p").tenant("sandbox")
-                .audience("issuer-api").sign(), null)).isInstanceOf(InvalidTokenException.class);
+        assertThat(verifier.verify(right, null)).isNotNull();
+        assertThatThrownBy(() -> verifier.verify(missing, null)).isInstanceOf(InvalidTokenException.class);
+        assertThatThrownBy(() -> verifier.verify(other, null)).isInstanceOf(InvalidTokenException.class);
     }
 
     @Test
@@ -113,8 +120,9 @@ class NimbusTokenVerifierTest {
             throw new KeySourceException("connection refused");
         };
         NimbusTokenVerifier verifier = new NimbusTokenVerifier(down, security, CLAIMS);
+        String token = TestTokens.writer();
 
-        assertThatThrownBy(() -> verifier.verify(TestTokens.writer(), null)).isInstanceOf(ServiceUnavailableException.class);
+        assertThatThrownBy(() -> verifier.verify(token, null)).isInstanceOf(ServiceUnavailableException.class);
     }
 
     @Test
@@ -136,90 +144,38 @@ class NimbusTokenVerifierTest {
             return TestTokens.token().person("p").tenant("red-logistica").audience(audience).sign();
         }
 
-        @Test
-        @DisplayName("verify_clientOfTheHostTenant_isAccepted")
-        void verify_clientOfTheHostTenant_isAccepted() throws Exception {
+        @ParameterizedTest(name = "audience {0} on host tenant {1} is accepted")
+        @CsvSource({
+                "vc-auth-client-red-logistica, red-logistica",
+                "audit-api, red-logistica",
+                "audit-api,"})
+        @DisplayName("verify_listedAudience_isAccepted")
+        void verify_listedAudience_isAccepted(String audience, String hostTenant) throws Exception {
             // Arrange
             NimbusTokenVerifier verifier = verifier(audiences);
-            String token = tokenFor("vc-auth-client-red-logistica");
+            String token = tokenFor(audience);
 
             // Act
-            Caller caller = verifier.verify(token, "red-logistica");
+            Caller caller = verifier.verify(token, hostTenant);
 
             // Assert
             assertThat(caller.tenant()).isEqualTo("red-logistica");
         }
 
-        @Test
-        @DisplayName("verify_clientOfAnotherTenant_isInvalid")
-        void verify_clientOfAnotherTenant_isInvalid() throws Exception {
+        @ParameterizedTest(name = "audience {0} on host tenant {1} is invalid")
+        @CsvSource({
+                "vc-auth-client-red-logistica, sandbox",
+                "vc-auth-client-red-logistica,",
+                "vc-auth-client-{tenant},",
+                "other, red-logistica"})
+        @DisplayName("verify_audienceNotListedForTheHost_isInvalid")
+        void verify_audienceNotListedForTheHost_isInvalid(String audience, String hostTenant) throws Exception {
             // Arrange
             NimbusTokenVerifier verifier = verifier(audiences);
-            String token = tokenFor("vc-auth-client-red-logistica");
+            String token = tokenFor(audience);
 
             // Act + Assert
-            assertThatThrownBy(() -> verifier.verify(token, "sandbox")).isInstanceOf(InvalidTokenException.class);
-        }
-
-        @Test
-        @DisplayName("verify_markerValueWithoutHostTenant_isInvalid")
-        void verify_markerValueWithoutHostTenant_isInvalid() throws Exception {
-            // Arrange
-            NimbusTokenVerifier verifier = verifier(audiences);
-            String token = tokenFor("vc-auth-client-red-logistica");
-
-            // Act + Assert
-            assertThatThrownBy(() -> verifier.verify(token, null)).isInstanceOf(InvalidTokenException.class);
-        }
-
-        @Test
-        @DisplayName("verify_literalMarkerInTheToken_isInvalid")
-        void verify_literalMarkerInTheToken_isInvalid() throws Exception {
-            // Arrange
-            NimbusTokenVerifier verifier = verifier(audiences);
-            String token = tokenFor("vc-auth-client-{tenant}");
-
-            // Act + Assert
-            assertThatThrownBy(() -> verifier.verify(token, null)).isInstanceOf(InvalidTokenException.class);
-        }
-
-        @Test
-        @DisplayName("verify_fixedValueWithoutHostTenant_isAccepted")
-        void verify_fixedValueWithoutHostTenant_isAccepted() throws Exception {
-            // Arrange
-            NimbusTokenVerifier verifier = verifier(audiences);
-            String token = tokenFor("audit-api");
-
-            // Act
-            Caller caller = verifier.verify(token, null);
-
-            // Assert
-            assertThat(caller).isNotNull();
-        }
-
-        @Test
-        @DisplayName("verify_fixedValueOnATenantHost_isAccepted")
-        void verify_fixedValueOnATenantHost_isAccepted() throws Exception {
-            // Arrange
-            NimbusTokenVerifier verifier = verifier(audiences);
-            String token = tokenFor("audit-api");
-
-            // Act
-            Caller caller = verifier.verify(token, "red-logistica");
-
-            // Assert
-            assertThat(caller).isNotNull();
-        }
-
-        @Test
-        @DisplayName("verify_unlistedAudience_isInvalid")
-        void verify_unlistedAudience_isInvalid() throws Exception {
-            // Arrange
-            NimbusTokenVerifier verifier = verifier(audiences);
-            String token = TestTokens.token().person("p").tenant("red-logistica").audience("other").sign();
-
-            // Act + Assert
-            assertThatThrownBy(() -> verifier.verify(token, "red-logistica")).isInstanceOf(InvalidTokenException.class);
+            assertThatThrownBy(() -> verifier.verify(token, hostTenant)).isInstanceOf(InvalidTokenException.class);
         }
 
         @Test

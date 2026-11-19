@@ -1,62 +1,48 @@
 package com.eudistack.audit.domain.model;
 
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("SortOrder")
 class SortOrderTest {
 
-    @Test
-    @DisplayName("fromWire_asc_isAscending")
-    void fromWire_asc_isAscending() {
-        // Arrange
-        String value = "asc";
-
-        // Act
+    @ParameterizedTest(name = "\"{0}\" is {1}")
+    @CsvSource({"asc, ASC", "desc, DESC"})
+    @DisplayName("fromWire_knownValue_isItsOrder")
+    void fromWire_knownValue_isItsOrder(String value, SortOrder expected) {
+        // Arrange + Act
         var order = SortOrder.fromWire(value);
 
         // Assert
-        assertThat(order).contains(SortOrder.ASC);
+        assertThat(order).contains(expected);
     }
 
-    @Test
-    @DisplayName("fromWire_desc_isDescending")
-    void fromWire_desc_isDescending() {
-        // Arrange
-        String value = "desc";
-
-        // Act
-        var order = SortOrder.fromWire(value);
-
-        // Assert
-        assertThat(order).contains(SortOrder.DESC);
-    }
-
-    @Test
+    @ParameterizedTest(name = "\"{0}\" is not an order")
+    @NullAndEmptySource
+    @ValueSource(strings = {"DESC", "Asc", "newest"})
     @DisplayName("fromWire_anythingElse_isEmpty")
-    void fromWire_anythingElse_isEmpty() {
-        // Arrange
-        String[] values = {"DESC", "Asc", "newest", "", null};
-
-        // Act
-        var parsed = java.util.Arrays.stream(values).map(SortOrder::fromWire).toList();
+    void fromWire_anythingElse_isEmpty(String value) {
+        // Arrange + Act
+        var order = SortOrder.fromWire(value);
 
         // Assert
-        assertThat(parsed).allSatisfy(order -> assertThat(order).isEmpty());
+        assertThat(order).isEmpty();
     }
 
-    @Test
+    @ParameterizedTest
+    @EnumSource(SortOrder.class)
     @DisplayName("wireValue_roundTripsThroughFromWire")
-    void wireValue_roundTripsThroughFromWire() {
-        // Arrange
-        SortOrder[] orders = SortOrder.values();
-
-        // Act
-        var parsed = java.util.Arrays.stream(orders).map(o -> SortOrder.fromWire(o.wireValue()).orElseThrow()).toList();
+    void wireValue_roundTripsThroughFromWire(SortOrder order) {
+        // Arrange + Act
+        var parsed = SortOrder.fromWire(order.wireValue());
 
         // Assert
-        assertThat(parsed).containsExactly(orders);
+        assertThat(parsed).contains(order);
     }
 }
