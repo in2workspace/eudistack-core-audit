@@ -6,6 +6,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added (EUD-313)
+
+- **Catálogo de eventos 2.4.0** (`catalogue/catalogo-eventos-2.4.0.yaml`), copia del anexo del PRD de EUD-329. Añade el evento `CertificateAuthentication`, el valor `Certificate` en `session_origin` de `IamSessionEstablished` y el campo opcional `trust_warning`. El catálogo 2.2.0 se mantiene sin cambios, así que los productores que siguen emitiendo con la 2.2.0 no se ven afectados. Los eventos que genera la propia API pasan a la 2.4.0.
+
 ### Changed (EUD-26)
 
 - **Observabilidad alineada con la Wallet EBW, la configuración de referencia.**
