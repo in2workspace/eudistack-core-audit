@@ -12,6 +12,7 @@ import com.eudistack.audit.infrastructure.web.HostPolicyFilter;
 import com.eudistack.audit.infrastructure.web.NoStoreFilter;
 import com.eudistack.audit.infrastructure.web.ProblemMapper;
 import com.eudistack.audit.infrastructure.web.RateLimitFilter;
+import com.eudistack.audit.infrastructure.web.SecurityLog;
 import com.eudistack.audit.infrastructure.web.TenantResolutionFilter;
 import com.eudistack.audit.infrastructure.web.TraceIds;
 import org.springframework.beans.factory.ObjectProvider;
@@ -66,16 +67,16 @@ public class WebConfiguration {
 
     @Bean
     public FilterRegistrationBean<HostPolicyFilter> hostPolicyFilter(AuditProperties properties, ProblemMapper problems,
-                                                                     AuditTelemetryPort telemetry) {
+                                                                     AuditTelemetryPort telemetry, SecurityLog security) {
         return register(new HostPolicyFilter(properties.getWeb().getInternalHosts(), properties.getRole(), problems,
-                telemetry, properties.getWeb().getMaxBodyBytes()), 1);
+                telemetry, security, properties.getWeb().getMaxBodyBytes()), 1);
     }
 
     @Bean
     public FilterRegistrationBean<BearerAuthenticationFilter> bearerAuthenticationFilter(
             NimbusTokenVerifier verifier, ObjectProvider<RecordEventsPort> recorder, ProblemMapper problems,
-            TraceIds traceIds, ObjectMapper mapper, AuditProperties properties) {
-        return register(new BearerAuthenticationFilter(verifier, recorder, problems, traceIds, mapper,
+            TraceIds traceIds, ObjectMapper mapper, SecurityLog security, AuditProperties properties) {
+        return register(new BearerAuthenticationFilter(verifier, recorder, problems, traceIds, mapper, security,
                 properties.getWeb().getMaxBodyBytes()), 2);
     }
 
@@ -87,8 +88,9 @@ public class WebConfiguration {
 
     @Bean
     @ConditionalOnAuditRole({AuditRole.READER, AuditRole.ALL})
-    public FilterRegistrationBean<RateLimitFilter> rateLimitFilter(QueryRateLimiter limiter, ProblemMapper problems) {
-        return register(new RateLimitFilter(limiter, problems), 4);
+    public FilterRegistrationBean<RateLimitFilter> rateLimitFilter(QueryRateLimiter limiter, ProblemMapper problems,
+                                                                  SecurityLog security) {
+        return register(new RateLimitFilter(limiter, problems, security), 4);
     }
 
     private static <F extends Filter> FilterRegistrationBean<F> register(F filter, int position) {

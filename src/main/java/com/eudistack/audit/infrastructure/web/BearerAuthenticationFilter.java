@@ -37,16 +37,18 @@ public final class BearerAuthenticationFilter extends OncePerRequestFilter {
     private final ProblemMapper problems;
     private final TraceIds traceIds;
     private final ObjectMapper mapper;
+    private final SecurityLog security;
     private final int maxBodyBytes;
 
     public BearerAuthenticationFilter(TokenVerifier verifier, ObjectProvider<RecordEventsPort> recorder,
                                       ProblemMapper problems, TraceIds traceIds, ObjectMapper mapper,
-                                      int maxBodyBytes) {
+                                      SecurityLog security, int maxBodyBytes) {
         this.verifier = verifier;
         this.recorder = recorder;
         this.problems = problems;
         this.traceIds = traceIds;
         this.mapper = mapper;
+        this.security = security;
         this.maxBodyBytes = maxBodyBytes;
     }
 
@@ -73,6 +75,8 @@ public final class BearerAuthenticationFilter extends OncePerRequestFilter {
                     port.recordAuthenticationFailure(countEvents(request), traceIds.current());
                 }
             }
+            Problem problem = problems.map(e, ApiRequest.path(request)).problem();
+            security.rejection(request, problem.status(), problem.type());
             problems.write(request, response, e);
             return;
         } catch (AuditDomainException e) {
