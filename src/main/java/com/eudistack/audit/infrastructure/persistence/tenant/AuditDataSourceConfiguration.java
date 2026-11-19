@@ -8,8 +8,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import javax.sql.DataSource;
-
 /**
  * One pool per profile, never one per tenant (AD-2): each process opens only the pool of its role
  * (design §3.4.2). The {@code all} role opens the three runtime pools, each with its own database role.
@@ -22,27 +20,25 @@ public class AuditDataSourceConfiguration {
     public static final String ARCHIVER = "archiverPool";
     public static final String MIGRATOR = "migratorPool";
 
-    // destroyMethod is empty: datasource-micrometer replaces the bean with a DataSource proxy that
-    // has no close(). JdbcPool destroys the Hikari pool underneath.
-    @Bean(destroyMethod = "")
+    @Bean(destroyMethod = "close")
     @ConditionalOnAuditRole({AuditRole.WRITER, AuditRole.ALL})
     public HikariDataSource writerDataSource(AuditProperties properties) {
         return dataSource(properties.getDatasource().getWriter());
     }
 
-    @Bean(destroyMethod = "")
+    @Bean(destroyMethod = "close")
     @ConditionalOnAuditRole({AuditRole.READER, AuditRole.ALL})
     public HikariDataSource readerDataSource(AuditProperties properties) {
         return dataSource(properties.getDatasource().getReader());
     }
 
-    @Bean(destroyMethod = "")
+    @Bean(destroyMethod = "close")
     @ConditionalOnAuditRole({AuditRole.ARCHIVER, AuditRole.ALL})
     public HikariDataSource archiverDataSource(AuditProperties properties) {
         return dataSource(properties.getDatasource().getArchiver());
     }
 
-    @Bean(destroyMethod = "")
+    @Bean(destroyMethod = "close")
     @ConditionalOnAuditRole(AuditRole.PROVISIONER)
     public HikariDataSource migratorDataSource(AuditProperties properties) {
         return dataSource(properties.getDatasource().getMigrator());
@@ -50,25 +46,25 @@ public class AuditDataSourceConfiguration {
 
     @Bean(WRITER)
     @ConditionalOnAuditRole({AuditRole.WRITER, AuditRole.ALL})
-    public JdbcPool writerPool(@Qualifier("writerDataSource") DataSource dataSource) {
+    public JdbcPool writerPool(@Qualifier("writerDataSource") HikariDataSource dataSource) {
         return new JdbcPool(dataSource);
     }
 
     @Bean(READER)
     @ConditionalOnAuditRole({AuditRole.READER, AuditRole.ALL})
-    public JdbcPool readerPool(@Qualifier("readerDataSource") DataSource dataSource) {
+    public JdbcPool readerPool(@Qualifier("readerDataSource") HikariDataSource dataSource) {
         return new JdbcPool(dataSource);
     }
 
     @Bean(ARCHIVER)
     @ConditionalOnAuditRole({AuditRole.ARCHIVER, AuditRole.ALL})
-    public JdbcPool archiverPool(@Qualifier("archiverDataSource") DataSource dataSource) {
+    public JdbcPool archiverPool(@Qualifier("archiverDataSource") HikariDataSource dataSource) {
         return new JdbcPool(dataSource);
     }
 
     @Bean(MIGRATOR)
     @ConditionalOnAuditRole(AuditRole.PROVISIONER)
-    public JdbcPool migratorPool(@Qualifier("migratorDataSource") DataSource dataSource) {
+    public JdbcPool migratorPool(@Qualifier("migratorDataSource") HikariDataSource dataSource) {
         return new JdbcPool(dataSource);
     }
 
@@ -93,9 +89,6 @@ public class AuditDataSourceConfiguration {
         // Uniqueness is closed by the primary key, not by the isolation level.
         dataSource.setTransactionIsolation("TRANSACTION_READ_COMMITTED");
         dataSource.setRegisterMbeans(true);
-        // PostgreSQL's error Detail repeats the row or the key. Without it, a failed statement
-        // keeps the constraint and the SQLState (OBS-05, OBS-10).
-        dataSource.addDataSourceProperty("logServerErrorDetail", "false");
         // No connectionInitSql: the schema is never fixed when the connection is created.
         return dataSource;
     }

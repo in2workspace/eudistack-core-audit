@@ -30,27 +30,6 @@ management:
     health:
       probes:
         enabled: true
-  # OBS-16: only the meters this service is allowed to export. Audit's own meters stay,
-  # because design §3.10 already publishes them; everything else Spring creates is off.
-  metrics:
-    enable:
-      all: false
-      "[http.server.requests]": true
-      "[hikaricp.connections.active]": true
-      "[hikaricp.connections.max]": true
-      "[db.writes]": true
-      "[audit.batch.latency]": true
-      "[audit.events]": true
-      "[audit.catalog.validation]": true
-      "[audit.query.latency]": true
-      "[audit.ratelimit.rejected]": true
-      "[audit.write.denied]": true
-      "[audit.archive.runs]": true
-      "[audit.archive.lag]": true
-      "[jvm.memory.used]": true
-      "[jvm.gc.pause]": true
-      "[jvm.threads.live]": true
-      "[process.cpu.usage]": true
   tracing:
     sampling:
       probability: ${OTEL_SAMPLING_PROBABILITY:1.0}
@@ -77,24 +56,6 @@ management:
       transport: ${MANAGEMENT_OTLP_LOGGING_TRANSPORT:grpc}
       export:
         enabled: ${MANAGEMENT_OTLP_LOGGING_EXPORT_ENABLED:false}
-
-# One span per query, inside the request or job that already opened an observation (OBS-10).
-# No connection or result-set spans, and no parameter values. db.client.* meters stay off:
-# writes are counted by DatabaseWritesHandler as db.writes (OBS-16).
-jdbc:
-  includes: QUERY
-  resultset-operations:
-    enabled: false
-  datasource-proxy:
-    include-parameter-values: false
-    query:
-      enable-logging: false
-  opentelemetry:
-    metrics:
-      enabled: false
-    analysis:
-      sanitize:
-        enabled: true
 
 logging:
   structured:
