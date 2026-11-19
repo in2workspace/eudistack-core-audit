@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -69,24 +70,38 @@ public final class ArchiveEventsWorkflow {
      * Runs the archiving of every scope. Returns the outcome of each tenant and day processed.
      */
     public List<DayOutcome> run() {
+        return run(ArchiveRunLog.NONE);
+    }
+
+    /**
+     * As {@link #run()}, calling {@code log} inside the {@code audit.archive.run} span.
+     */
+    public List<DayOutcome> run(ArchiveRunLog log) {
         String runId = UUID.randomUUID().toString();
         LocalDate cutoffDay = LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC).minusDays(ONLINE_PERIOD.toDays());
         Instant cutoff = cutoffDay.atStartOfDay(ZoneOffset.UTC).toInstant();
+        LocalDate archivedDay = cutoffDay.minusDays(1);
         List<TenantRef> scopes = new ArrayList<>();
         scopes.add(TenantRef.PLATFORM);
         scopes.addAll(directory.tenants());
-        return telemetry.span("audit.archive.run", Map.of("audit.archive.day", cutoffDay.minusDays(1).toString()),
+        return telemetry.span("audit.archive.run", Map.of("audit.archive.day", archivedDay.toString()),
                 () -> {
+                    log.started(archivedDay, scopes.size());
+                    long startedAt = System.nanoTime();
                     List<DayOutcome> outcomes = new ArrayList<>();
                     for (TenantRef tenant : scopes) {
                         TreeSet<LocalDate> days = new TreeSet<>(repository.daysWithEventsBefore(tenant, cutoff));
                         // FR-24: one run per tenant even when its day had no events.
-                        days.add(cutoffDay.minusDays(1));
+                        days.add(archivedDay);
                         for (LocalDate day : days) {
                             outcomes.add(archiveDay(tenant, day, runId));
                         }
                         recordLag(tenant);
                     }
+                    long failures = outcomes.stream().filter(outcome -> outcome.status() == Status.FAILURE).count();
+                    log.finished(outcomes.size(), failures,
+                            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt),
+                            failures == 0 ? "ok" : "with_failures");
                     return outcomes;
                 });
     }

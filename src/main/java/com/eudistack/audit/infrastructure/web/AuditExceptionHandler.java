@@ -2,6 +2,8 @@ package com.eudistack.audit.infrastructure.web;
 
 import jakarta.servlet.http.HttpServletRequest;
 import com.eudistack.audit.domain.exception.AuditDomainException;
+import com.eudistack.audit.domain.exception.BadRequestException;
+import com.eudistack.audit.domain.exception.RateLimitedException;
 import com.eudistack.audit.domain.exception.ServiceUnavailableException;
 import com.eudistack.audit.infrastructure.config.AuditRole;
 import com.eudistack.audit.infrastructure.config.ConditionalOnAuditRole;
@@ -32,17 +34,25 @@ public class AuditExceptionHandler {
     private static final MediaType PROBLEM = MediaType.parseMediaType(Problem.MEDIA_TYPE);
 
     private final ProblemMapper problems;
+    private final SecurityLog security;
 
-    public AuditExceptionHandler(ProblemMapper problems) {
+    public AuditExceptionHandler(ProblemMapper problems, SecurityLog security) {
         this.problems = problems;
+        this.security = security;
     }
 
     @ExceptionHandler(AuditDomainException.class)
     public ResponseEntity<Problem> domain(AuditDomainException exception, HttpServletRequest request) {
+        ProblemMapper.Mapped mapped = problems.map(exception, ApiRequest.path(request));
         if (exception instanceof ServiceUnavailableException) {
             LOG.error("Audit store unavailable: {}", exception.getMessage(), exception.getCause());
+        } else if (exception instanceof BadRequestException bad && isCursor(bad)) {
+            security.invalidCursor(request);
+        } else if (exception instanceof RateLimitedException limited) {
+            security.rateLimited(request, limited.system(), limited.search());
+        } else {
+            security.rejection(request, mapped.problem().status(), mapped.problem().type());
         }
-        ProblemMapper.Mapped mapped = problems.map(exception, ApiRequest.path(request));
         HttpHeaders headers = new HttpHeaders();
         mapped.headers().forEach(headers::set);
         return ResponseEntity.status(mapped.problem().status()).headers(headers).contentType(PROBLEM)
@@ -56,20 +66,20 @@ public class AuditExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Problem> unreadable(HttpServletRequest request) {
-        return respond(ProblemMapper.problem("BAD_REQUEST", "The request is not valid", 400,
+        return clientError(request, ProblemMapper.problem("BAD_REQUEST", "The request is not valid", 400,
                 "The body could not be read", ApiRequest.path(request), List.of()));
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<Problem> methodNotAllowed(HttpServletRequest request) {
-        return respond(ProblemMapper.problem("BAD_REQUEST", "Method not allowed", 405,
+        return clientError(request, ProblemMapper.problem("BAD_REQUEST", "Method not allowed", 405,
                 "This operation does not exist", ApiRequest.path(request), List.of()));
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<Problem> notFound(HttpServletRequest request) {
-        return respond(ProblemMapper.problem("NOT_FOUND", "Not found", 404, null, ApiRequest.path(request),
-                List.of()));
+        return clientError(request, ProblemMapper.problem("NOT_FOUND", "Not found", 404, null,
+                ApiRequest.path(request), List.of()));
     }
 
     @ExceptionHandler(Exception.class)
@@ -77,6 +87,15 @@ public class AuditExceptionHandler {
         LOG.error("Unexpected error on {} {}", request.getMethod(), ApiRequest.path(request), exception);
         return respond(ProblemMapper.problem("INTERNAL_SERVER_ERROR", "Unexpected error",
                 HttpStatus.INTERNAL_SERVER_ERROR.value(), null, ApiRequest.path(request), List.of()));
+    }
+
+    private ResponseEntity<Problem> clientError(HttpServletRequest request, Problem problem) {
+        security.rejection(request, problem.status(), problem.type());
+        return respond(problem);
+    }
+
+    private static boolean isCursor(BadRequestException exception) {
+        return exception.violations().stream().anyMatch(violation -> "cursor".equals(violation.field()));
     }
 
     private static ResponseEntity<Problem> respond(Problem problem) {

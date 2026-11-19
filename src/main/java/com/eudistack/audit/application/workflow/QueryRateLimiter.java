@@ -49,11 +49,11 @@ public final class QueryRateLimiter {
         String key = system ? "system:" + actor : "person:" + caller.subject();
         if (counters.hit(key, window) > (system ? limits.system() : limits.person())) {
             telemetry.rateLimited(system, false);
-            throw new RateLimitedException(retryAfter);
+            throw new RateLimitedException(retryAfter, system, false);
         }
         if (pathSearch && counters.hit(key + ":search", window) > (system ? limits.systemSearch() : limits.personSearch())) {
             telemetry.rateLimited(system, true);
-            throw new RateLimitedException(retryAfter);
+            throw new RateLimitedException(retryAfter, system, true);
         }
     }
 }
