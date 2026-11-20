@@ -55,7 +55,7 @@ dependencies {
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
 
     // --- Bearer tokens issued by the Verifier (JWKS) ---
-    implementation("com.nimbusds:nimbus-jose-jwt:10.9.1")
+    implementation("com.nimbusds:nimbus-jose-jwt:10.10")
 
     // --- Cold storage (S3 Object Lock, AD-7) ---
     implementation("software.amazon.awssdk:s3")
