@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.eudistack.audit.domain.exception.BadRequestException;
 import com.eudistack.audit.domain.model.CursorPosition;
+import com.eudistack.audit.domain.model.SortOrder;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -41,11 +42,13 @@ public final class CursorCodec {
     /**
      * @param scope       scope label the cursor belongs to
      * @param filtersHash digest of the normalised filters
+     * @param order       order of the first page, which the whole listing keeps
      * @param from        resolved start of the period
      * @param to          resolved end of the period
      * @param position    last event served
      */
-    public record CursorState(String scope, String filtersHash, Instant from, Instant to, CursorPosition position) {
+    public record CursorState(String scope, String filtersHash, SortOrder order, Instant from, Instant to,
+                              CursorPosition position) {
     }
 
     public String encode(CursorState state) {
@@ -53,6 +56,7 @@ public final class CursorCodec {
         node.put("v", 1);
         node.put("s", state.scope());
         node.put("f", state.filtersHash());
+        node.put("o", state.order().wireValue());
         node.put("from", state.from().toString());
         node.put("to", state.to().toString());
         node.put("at", state.position().occurredAt().toString());
@@ -79,6 +83,9 @@ public final class CursorCodec {
             return new CursorState(
                     node.get("s").asText(),
                     node.get("f").asText(),
+                    // A cursor issued before `order` existed lists ascending.
+                    node.hasNonNull("o") ? SortOrder.fromWire(node.get("o").asText()).orElseThrow(CursorCodec::invalid)
+                            : SortOrder.ASC,
                     Instant.parse(node.get("from").asText()),
                     Instant.parse(node.get("to").asText()),
                     new CursorPosition(Instant.parse(node.get("at").asText()), UUID.fromString(node.get("id").asText()),

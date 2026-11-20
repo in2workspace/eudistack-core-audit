@@ -44,7 +44,7 @@ public final class RecoverArchiveRunner implements OneShotTask {
     @Override
     public void run(ApplicationArguments args) {
         try {
-            Caller caller = tokens.verify(recover.getToken());
+            Caller caller = tokens.verify(recover.getToken(), null);
             List<AuditEvent> events = workflow.recover(caller, recover.getTenant(), LocalDate.parse(recover.getFrom()),
                     LocalDate.parse(recover.getTo()), UUID.randomUUID().toString().replace("-", ""));
             ObjectNode body = mapper.createObjectNode();

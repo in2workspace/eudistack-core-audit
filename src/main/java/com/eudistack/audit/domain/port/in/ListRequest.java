@@ -23,6 +23,7 @@ public record ListRequest(
         String tenant,
         String limit,
         String cursor,
+        String order,
         ObjectNode receivedFilters
 ) {
 

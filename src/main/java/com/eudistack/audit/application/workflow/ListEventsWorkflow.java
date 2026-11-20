@@ -14,6 +14,7 @@ import com.eudistack.audit.domain.model.EventPage;
 import com.eudistack.audit.domain.model.QuerySpec;
 import com.eudistack.audit.domain.model.ReadScope;
 import com.eudistack.audit.domain.model.Result;
+import com.eudistack.audit.domain.model.SortOrder;
 import com.eudistack.audit.domain.model.StoredEvent;
 import com.eudistack.audit.domain.policy.CanonicalJson;
 import com.eudistack.audit.domain.policy.CursorCodec;
@@ -99,7 +100,7 @@ public final class ListEventsWorkflow implements ListEventsPort {
             CursorPosition position = scope instanceof ReadScope.AllTenants ? last
                     : new CursorPosition(last.occurredAt(), last.eventId(), null);
             next = cursors.encode(new CursorCodec.CursorState(scope.label(), validated.filtersHash(),
-                    spec.from(), spec.to(), position));
+                    spec.order(), spec.from(), spec.to(), position));
         }
         List<AuditEvent> events = page.stream().map(StoredEvent::event).toList();
         return new EventPage(events, next);
@@ -117,6 +118,7 @@ public final class ListEventsWorkflow implements ListEventsPort {
         Instant from = parseInstant("from", request.from());
         Instant to = parseInstant("to", request.to());
         List<Result> results = parseResults(request.results());
+        SortOrder order = parseOrder(request.order());
         List<EventTypeSpec> types = resolveTypes(request.eventTypes());
         ObjectNode containment = containment(request, types);
 
@@ -131,7 +133,7 @@ public final class ListEventsWorkflow implements ListEventsPort {
         if (request.cursor() != null) {
             CursorCodec.CursorState state = cursors.decode(request.cursor());
             if (!state.scope().equals(scope.label()) || !state.filtersHash().equals(filtersHash)
-                    || (from != null && !from.equals(state.from())) || (to != null && !to.equals(state.to()))) {
+                    || state.order() != order || (from != null && !from.equals(state.from())) || (to != null && !to.equals(state.to()))) {
                 throw new BadRequestException("cursor", "The cursor does not belong to this query");
             }
             if (state.from().isBefore(QueryWindowPolicy.oldestOnline(now))) {
@@ -143,7 +145,7 @@ public final class ListEventsWorkflow implements ListEventsPort {
             window = QueryWindowPolicy.resolve(from, to, now);
         }
         QuerySpec spec = new QuerySpec(window.from(), window.to(), typeNames, results, request.correlationId(),
-                request.resource(), request.actorId(), organization, containment, limit, after);
+                request.resource(), request.actorId(), organization, containment, order, limit, after);
         return new Validated(spec, filtersHash);
     }
 
@@ -204,6 +206,14 @@ public final class ListEventsWorkflow implements ListEventsPort {
                     new BadRequestException("result", "result must be Success, Denied or Failure")));
         }
         return results;
+    }
+
+    private static SortOrder parseOrder(String raw) {
+        if (raw == null) {
+            return SortOrder.ASC;
+        }
+        return SortOrder.fromWire(raw).orElseThrow(() ->
+                new BadRequestException("order", "order must be asc or desc"));
     }
 
     private static int parseLimit(String raw) {

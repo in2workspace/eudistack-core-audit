@@ -35,7 +35,7 @@ Una sola imagen; `AUDIT_ROLE` decide qué arranca:
 | `AUDIT_DB_URL`, `AUDIT_DB_{WRITER,READER,ARCHIVER,MIGRATOR}_{USER,PASSWORD}` | Base `audit` y credenciales de cada rol |
 | `AUDIT_SECURITY_JWKS_URI` | JWKS del Verifier (URL interna) |
 | `AUDIT_SECURITY_TRUSTED_ISSUERS` | `iss` aceptados, p. ej. `https://{tenant}.stg.eudistack.net/verifier` |
-| `AUDIT_SECURITY_AUDIENCE` | `aud` exigido; vacío hasta que el Verifier la emita (PO-12) |
+| `AUDIT_SECURITY_AUDIENCE` | `aud` aceptados, separados por comas; un valor puede llevar `{tenant}`, p. ej. `vc-auth-client-{tenant}`. Vacío: no se comprueba `aud` |
 | `AUDIT_QUERY_CURSOR_SECRET` | Clave HMAC de los cursores, igual en todas las réplicas reader (≥ 32 bytes) |
 | `AUDIT_ARCHIVE_BUCKET`, `AWS_REGION`, `AUDIT_ARCHIVE_ENDPOINT` | Bucket S3 con Object Lock (Compliance) y SSE-KMS |
 | `AUDIT_PROVISIONER_TENANTS` | Tenants a provisionar (`sandbox,red-logistica,cgcom,dome` en local) |
