@@ -2,7 +2,7 @@ plugins {
     java
     jacoco
     checkstyle
-    id("org.springframework.boot") version "3.5.11"
+    id("org.springframework.boot") version "4.1.2"
     id("io.spring.dependency-management") version "1.1.7"
     id("org.sonarqube") version "7.4.0.8496"
     id("org.cyclonedx.bom") version "2.2.0"
