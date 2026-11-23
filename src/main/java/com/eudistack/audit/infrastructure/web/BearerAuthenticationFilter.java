@@ -32,6 +32,10 @@ public final class BearerAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String BEARER = "Bearer ";
 
+    /** Problem writing and the security line of a rejection, kept together so the constructor stays small. */
+    public record RejectionSupport(ProblemMapper problems, SecurityLog security) {
+    }
+
     private final TokenVerifier verifier;
     private final ObjectProvider<RecordEventsPort> recorder;
     private final ProblemMapper problems;
@@ -42,15 +46,15 @@ public final class BearerAuthenticationFilter extends OncePerRequestFilter {
     private final int maxBodyBytes;
 
     public BearerAuthenticationFilter(TokenVerifier verifier, ObjectProvider<RecordEventsPort> recorder,
-                                      ProblemMapper problems, TraceIds traceIds, ObjectMapper mapper,
-                                      HostTenantResolver hostTenants, SecurityLog security, int maxBodyBytes) {
+                                      RejectionSupport rejections, TraceIds traceIds, ObjectMapper mapper,
+                                      HostTenantResolver hostTenants, int maxBodyBytes) {
         this.verifier = verifier;
         this.recorder = recorder;
-        this.problems = problems;
+        this.problems = rejections.problems();
         this.traceIds = traceIds;
         this.mapper = mapper;
         this.hostTenants = hostTenants;
-        this.security = security;
+        this.security = rejections.security();
         this.maxBodyBytes = maxBodyBytes;
     }
 

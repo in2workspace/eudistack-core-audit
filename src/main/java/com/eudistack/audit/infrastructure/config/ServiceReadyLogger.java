@@ -42,6 +42,6 @@ public final class ServiceReadyLogger implements ApplicationListener<Application
     }
 
     private String configured(String property) {
-        return environment.getProperty(property, Boolean.class, false) ? "enabled" : "disabled";
+        return environment.getProperty(property, boolean.class, false) ? "enabled" : "disabled";
     }
 }

@@ -38,6 +38,8 @@ import java.util.regex.Pattern;
  */
 public final class HostPolicyFilter extends OncePerRequestFilter {
 
+    private static final String BAD_REQUEST = "BAD_REQUEST";
+
     private final List<Pattern> internalHosts;
     private final AuditRole role;
     private final ProblemMapper problems;
@@ -95,8 +97,8 @@ public final class HostPolicyFilter extends OncePerRequestFilter {
         }
         long length = request.getContentLengthLong();
         if (length < 0 || length > maxBodyBytes) {
-            security.rejection(request, 400, "BAD_REQUEST");
-            problems.write(response, ProblemMapper.problem("BAD_REQUEST", "The request is not valid", 400,
+            security.rejection(request, 400, BAD_REQUEST);
+            problems.write(response, ProblemMapper.problem(BAD_REQUEST, "The request is not valid", 400,
                     "The body must declare Content-Length and not exceed " + maxBodyBytes + " bytes",
                     ApiRequest.path(request), List.of()));
             return false;
@@ -124,8 +126,8 @@ public final class HostPolicyFilter extends OncePerRequestFilter {
         if (allow != null) {
             response.setHeader(HttpHeaders.ALLOW, allow);
         }
-        security.rejection(request, 405, "BAD_REQUEST");
-        problems.write(response, ProblemMapper.problem("BAD_REQUEST", "Method not allowed", 405,
+        security.rejection(request, 405, BAD_REQUEST);
+        problems.write(response, ProblemMapper.problem(BAD_REQUEST, "Method not allowed", 405,
                 "This operation does not exist on this endpoint", null, List.of()));
     }
 

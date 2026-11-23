@@ -104,10 +104,10 @@ class ReviewWebCoverageTest {
         TokenVerifier down = (token, hostTenant) -> {
             throw new ServiceUnavailableException("jwks", null);
         };
-        BearerAuthenticationFilter filter = new BearerAuthenticationFilter(down, empty(), problems,
+        BearerAuthenticationFilter filter = new BearerAuthenticationFilter(down, empty(),
+                new BearerAuthenticationFilter.RejectionSupport(problems, new SecurityLog(Clock.systemUTC())),
                 new TraceIds(empty()), new ObjectMapper(),
-                new HostTenantResolver("X-Tenant-Id", List.of(), List.of()),
-                new SecurityLog(Clock.systemUTC()), 64);
+                new HostTenantResolver("X-Tenant-Id", List.of(), List.of()), 64);
         MockHttpServletRequest missing = write();
         MockHttpServletResponse missingResponse = new MockHttpServletResponse();
         filter.doFilter(missing, missingResponse, (request, response) -> {

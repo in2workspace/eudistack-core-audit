@@ -26,6 +26,7 @@ import java.util.List;
 public final class SecurityLog {
 
     static final String LOGGER_NAME = "com.eudistack.audit.security";
+    private static final String ERROR_TYPE = "error.type";
     private static final Logger LOG = LoggerFactory.getLogger(LOGGER_NAME);
 
     private final WarnThrottle throttle;
@@ -40,7 +41,7 @@ public final class SecurityLog {
             return;
         }
         mark(request, errorType);
-        line(request, status).addKeyValue("error.type", errorType).log("Request rejected");
+        line(request, status).addKeyValue(ERROR_TYPE, errorType).log("Request rejected");
     }
 
     /**
@@ -58,7 +59,7 @@ public final class SecurityLog {
             return;
         }
         LoggingEventBuilder builder = line(request, 429)
-                .addKeyValue("error.type", "rate_limited")
+                .addKeyValue(ERROR_TYPE, "rate_limited")
                 .addKeyValue("kind", kind)
                 .addKeyValue("search", search);
         suppressed(builder, decision.suppressed()).log("Query rate limited");
@@ -74,7 +75,7 @@ public final class SecurityLog {
         if (!decision.emit()) {
             return;
         }
-        suppressed(line(request, 400).addKeyValue("error.type", "invalid_cursor"), decision.suppressed())
+        suppressed(line(request, 400).addKeyValue(ERROR_TYPE, "invalid_cursor"), decision.suppressed())
                 .log("Invalid cursor");
     }
 

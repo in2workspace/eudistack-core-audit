@@ -84,8 +84,9 @@ public class WebConfiguration {
             NimbusTokenVerifier verifier, ObjectProvider<RecordEventsPort> recorder, ProblemMapper problems,
             TraceIds traceIds, ObjectMapper mapper, HostTenantResolver hostTenants, SecurityLog security,
             AuditProperties properties) {
-        return register(new BearerAuthenticationFilter(verifier, recorder, problems, traceIds, mapper, hostTenants,
-                security, properties.getWeb().getMaxBodyBytes()), 2);
+        return register(new BearerAuthenticationFilter(verifier, recorder,
+                new BearerAuthenticationFilter.RejectionSupport(problems, security), traceIds, mapper, hostTenants,
+                properties.getWeb().getMaxBodyBytes()), 2);
     }
 
     @Bean

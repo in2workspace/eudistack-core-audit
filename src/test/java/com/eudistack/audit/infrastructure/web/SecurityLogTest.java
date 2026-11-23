@@ -175,12 +175,14 @@ class SecurityLogTest {
     void aBearer401IsLoggedAndAVerifierOutageIsNot() throws Exception {
         ProblemMapper problems = new ProblemMapper(new ObjectMapper());
         HostTenantResolver tenants = new HostTenantResolver("X-Tenant-Id", List.of(), List.of());
+        BearerAuthenticationFilter.RejectionSupport rejections =
+                new BearerAuthenticationFilter.RejectionSupport(problems, security);
         BearerAuthenticationFilter filter = new BearerAuthenticationFilter((token, hostTenant) -> {
             throw new ServiceUnavailableException("jwks " + TOKEN, null);
-        }, empty(), problems, new TraceIds(empty()), new ObjectMapper(), tenants, security, 64);
+        }, empty(), rejections, new TraceIds(empty()), new ObjectMapper(), tenants, 64);
         BearerAuthenticationFilter missing = new BearerAuthenticationFilter((token, hostTenant) -> {
             throw new AssertionError(token);
-        }, empty(), problems, new TraceIds(empty()), new ObjectMapper(), tenants, security, 64);
+        }, empty(), rejections, new TraceIds(empty()), new ObjectMapper(), tenants, 64);
         try (LogCapture capture = LogCapture.attach(SecurityLog.LOGGER_NAME)) {
             MockHttpServletRequest request = writeRequest();
             request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN);

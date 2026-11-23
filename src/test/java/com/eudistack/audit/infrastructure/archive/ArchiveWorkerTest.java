@@ -43,7 +43,7 @@ class ArchiveWorkerTest {
     void runOnce_logsStartAndFinishInsideTheArchiveSpan() {
         AtomicBoolean spanOpen = new AtomicBoolean();
         AtomicBoolean finishedWhileOpen = new AtomicBoolean();
-        TurboFilter witness = witness(spanOpen, finishedWhileOpen);
+        watchSpan(spanOpen, finishedWhileOpen);
         ArchiveWorker worker = worker(new EmptyRepository(), new InMemoryColdStorage(clock()),
                 tracking(spanOpen));
         try (LogCapture capture = LogCapture.attach(ArchiveWorker.class.getName())) {
@@ -101,7 +101,7 @@ class ArchiveWorkerTest {
         }
     }
 
-    private static TurboFilter witness(AtomicBoolean spanOpen, AtomicBoolean finishedWhileOpen) {
+    private static void watchSpan(AtomicBoolean spanOpen, AtomicBoolean finishedWhileOpen) {
         TurboFilter filter = new TurboFilter() {
             @Override
             public FilterReply decide(Marker marker, ch.qos.logback.classic.Logger logger, Level level,
@@ -114,7 +114,6 @@ class ArchiveWorkerTest {
         };
         filter.start();
         context().addTurboFilter(filter);
-        return filter;
     }
 
     private static LoggerContext context() {
@@ -150,34 +149,42 @@ class ArchiveWorkerTest {
 
             @Override
             public void batchRecorded(String outcome, long nanos) {
+                // an archive run does not record a batch
             }
 
             @Override
             public void eventRecorded(String status, String error) {
+                // an archive run does not record an event outcome
             }
 
             @Override
             public void catalogueValidated(boolean valid, long nanos) {
+                // an archive run does not validate the catalogue
             }
 
             @Override
             public void queryServed(String operation, String outcome, long nanos) {
+                // an archive run does not serve a query
             }
 
             @Override
             public void rateLimited(boolean system, boolean search) {
+                // an archive run is not rate limited
             }
 
             @Override
             public void writeDenied(String reason) {
+                // an archive run does not deny a write
             }
 
             @Override
             public void archiveRun(boolean success) {
+                // the test asserts the log, not this counter
             }
 
             @Override
             public void archiveLag(String tenantId, boolean platform, long seconds) {
+                // the test asserts the log, not this gauge
             }
         };
     }
@@ -205,14 +212,17 @@ class ArchiveWorkerTest {
 
         @Override
         public void unlock(String tenantId, LocalDate day, String owner) {
+            // no lock is held in this empty store
         }
 
         @Override
         public void deleteArchived(TenantRef tenant, Collection<UUID> eventIds, AuditEvent archivedRecord) {
+            // the empty store has nothing to delete
         }
 
         @Override
         public void recordOutcome(AuditEvent archivedRecord) {
+            // the test does not inspect the stored outcome
         }
     }
 }

@@ -34,9 +34,10 @@ class BearerAuthenticationFilterTest {
         };
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         return new BearerAuthenticationFilter(verifier, beans.getBeanProvider(RecordEventsPort.class),
-                new ProblemMapper(new ObjectMapper()), new TraceIds(beans.getBeanProvider(Tracer.class)),
-                new ObjectMapper(), new HostTenantResolver("X-Tenant-Id", List.of("-stg"), List.of()),
-                new SecurityLog(Clock.systemUTC()), 1024);
+                new BearerAuthenticationFilter.RejectionSupport(new ProblemMapper(new ObjectMapper()),
+                        new SecurityLog(Clock.systemUTC())),
+                new TraceIds(beans.getBeanProvider(Tracer.class)), new ObjectMapper(),
+                new HostTenantResolver("X-Tenant-Id", List.of("-stg"), List.of()), 1024);
     }
 
     private static MockHttpServletRequest request(String host, ApiRequest.Face face) {
