@@ -140,12 +140,12 @@ class ReviewPathCoverageTest {
 
     private static ListRequest request(String from, String to, String detailsValue, String limit) {
         return new ListRequest(from, to, List.of(), List.of(), null, null, null, null, detailsValue, null, null,
-                limit, null, JsonNodeFactory.instance.objectNode());
+                limit, null, null, JsonNodeFactory.instance.objectNode());
     }
 
     private static ListRequest requestWithPath() {
         return new ListRequest(null, null, List.of(), List.of(), null, null, null, "holder", null, null, null,
-                null, null, JsonNodeFactory.instance.objectNode());
+                null, null, null, JsonNodeFactory.instance.objectNode());
     }
 
     private static TenantDirectoryPort directory() {

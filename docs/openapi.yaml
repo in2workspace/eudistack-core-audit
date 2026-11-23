@@ -145,10 +145,11 @@ paths:
       operationId: listEvents
       summary: List audit events
       description: |
-        Returns the events within the caller's scope, oldest first, paginated.
+        Returns the events within the caller's scope, oldest first unless `order=desc`, paginated.
         `Audit · Read` of type `organization` gives the whole tenant; of type `domain`, only the
         events whose `organization` is the caller's. The platform administrator, from the platform
-        tenant, chooses the scope with `tenant`.
+        tenant, chooses the scope with `tenant`; from a tenant's address, without `tenant`, gets that
+        whole tenant, as with `Audit · Read` of type `organization`.
         The period is at most 31 days and must fall within the 90-day online period, the same for all
         tenants; older periods are archived and are not served by this API.
         With `details_path` and `details_value`, returns only the events whose `details` contain that
@@ -212,6 +213,11 @@ paths:
           required: false
           description: Platform administrator only, from the platform tenant. A tenant identifier, `platform` or `all`.
           schema: { type: string, maxLength: 100 }
+        - name: order
+          in: query
+          required: false
+          description: "Order by `occurred_at`, ties broken by `event_id`. `asc`, oldest first (default), or `desc`, newest first. The cursor keeps the order of the first page."
+          schema: { type: string, enum: [asc, desc], default: asc }
         - name: limit
           in: query
           required: false

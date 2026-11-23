@@ -92,7 +92,7 @@ audit:
     jwks-uri: ${AUDIT_SECURITY_JWKS_URI:}
     # e.g. https://{tenant}.stg.eudistack.net/verifier,https://{tenant}-stg.eudistack.net/verifier
     trusted-issuers: ${AUDIT_SECURITY_TRUSTED_ISSUERS:}
-    # Required for roles writer and reader. Role all (local and CI) may leave it empty until the Verifier emits one (PO-12).
+    # Accepted aud values, comma separated; a value may hold {tenant}, e.g. vc-auth-client-{tenant}. Required for roles writer and reader; role all (local and CI) may leave it empty, and aud is then not checked.
     audience: ${AUDIT_SECURITY_AUDIENCE:}
   datasource:
     writer:

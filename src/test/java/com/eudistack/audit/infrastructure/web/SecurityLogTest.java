@@ -81,7 +81,8 @@ class SecurityLogTest {
             handler.unexpected(new IllegalStateException("sql select from events where actor='ada@example.com'"),
                     patterned(500));
             assertThat(securityLog.events()).isEmpty();
-            assertThat(handlerLog.events()).allSatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.ERROR));
+            assertThat(handlerLog.events()).isNotEmpty()
+                    .allSatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.ERROR));
         }
     }
 
@@ -173,12 +174,13 @@ class SecurityLogTest {
     @Test
     void aBearer401IsLoggedAndAVerifierOutageIsNot() throws Exception {
         ProblemMapper problems = new ProblemMapper(new ObjectMapper());
-        BearerAuthenticationFilter filter = new BearerAuthenticationFilter(token -> {
+        HostTenantResolver tenants = new HostTenantResolver("X-Tenant-Id", List.of(), List.of());
+        BearerAuthenticationFilter filter = new BearerAuthenticationFilter((token, hostTenant) -> {
             throw new ServiceUnavailableException("jwks " + TOKEN, null);
-        }, empty(), problems, new TraceIds(empty()), new ObjectMapper(), security, 64);
-        BearerAuthenticationFilter missing = new BearerAuthenticationFilter(token -> {
+        }, empty(), problems, new TraceIds(empty()), new ObjectMapper(), tenants, security, 64);
+        BearerAuthenticationFilter missing = new BearerAuthenticationFilter((token, hostTenant) -> {
             throw new AssertionError(token);
-        }, empty(), problems, new TraceIds(empty()), new ObjectMapper(), security, 64);
+        }, empty(), problems, new TraceIds(empty()), new ObjectMapper(), tenants, security, 64);
         try (LogCapture capture = LogCapture.attach(SecurityLog.LOGGER_NAME)) {
             MockHttpServletRequest request = writeRequest();
             request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN);

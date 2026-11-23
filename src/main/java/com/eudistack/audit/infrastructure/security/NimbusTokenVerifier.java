@@ -26,7 +26,8 @@ import java.util.regex.Pattern;
 /**
  * Verifies a Verifier access token (design §3.4.1): asymmetric signature against the Verifier JWKS,
  * {@code iss} among the trusted issuers, {@code exp} / {@code nbf} with clock skew, {@code sub}, and
- * {@code aud} containing {@code audit.security.audience} when it is configured (PO-12).
+ * {@code aud} containing one of {@code audit.security.audience} when it is configured. A configured value may
+ * hold the tenant marker, resolved against the tenant of the request host (design AD-11).
  *
  * <p>The JWKS source caches the key set and refetches on an unknown {@code kid}, so key rotation in the
  * Verifier needs no redeploy here. A JWKS that cannot be fetched is a 503, never a 401.
@@ -41,18 +42,21 @@ public final class NimbusTokenVerifier implements TokenVerifier {
         ALGORITHMS.addAll(JWSAlgorithm.Family.ED);
     }
 
+    private static final String TENANT_PLACEHOLDER = "{tenant}";
+
     private final DefaultJWTProcessor<SecurityContext> processor;
     private final List<Pattern> trustedIssuers;
+    private final List<String> audiences;
     private final CallerClaims callerClaims;
 
     public NimbusTokenVerifier(JWKSource<SecurityContext> jwks, AuditProperties.Security security,
                                CallerClaims callerClaims) {
         this.callerClaims = callerClaims;
         this.trustedIssuers = security.getTrustedIssuers().stream().map(NimbusTokenVerifier::issuerPattern).toList();
-        Set<String> audience = security.getAudience() == null || security.getAudience().isBlank()
-                ? null : Set.of(security.getAudience());
+        this.audiences = security.getAudience().stream().filter(value -> !value.isBlank()).map(String::trim).toList();
+        // The audience depends on the request host, so it is checked in verify(), not here.
         DefaultJWTClaimsVerifier<SecurityContext> claimsVerifier =
-                new DefaultJWTClaimsVerifier<>(audience, null, Set.of("exp", "iss", "sub"), null);
+                new DefaultJWTClaimsVerifier<>((Set<String>) null, null, Set.of("exp", "iss", "sub"), null);
         claimsVerifier.setMaxClockSkew((int) security.getClockSkew().toSeconds());
         this.processor = new DefaultJWTProcessor<>();
         this.processor.setJWSKeySelector(new JWSVerificationKeySelector<>(ALGORITHMS, jwks));
@@ -60,7 +64,7 @@ public final class NimbusTokenVerifier implements TokenVerifier {
     }
 
     @Override
-    public Caller verify(String bearerToken) {
+    public Caller verify(String bearerToken, String hostTenant) {
         JWTClaimsSet claims;
         try {
             claims = processor.process(SignedJWT.parse(bearerToken), null);
@@ -69,11 +73,28 @@ public final class NimbusTokenVerifier implements TokenVerifier {
         } catch (ParseException | BadJOSEException | JOSEException _) {
             throw new InvalidTokenException("The access token is not valid");
         }
+        if (!acceptsAudience(claims.getAudience(), hostTenant)) {
+            throw new InvalidTokenException("The access token was not issued for this service");
+        }
         String issuer = claims.getIssuer();
         if (trustedIssuers.stream().noneMatch(p -> p.matcher(issuer).matches())) {
             throw new InvalidTokenException("The access token was not issued by a trusted Verifier");
         }
         return callerClaims.toCaller(claims);
+    }
+
+    /**
+     * Without a configured audience nothing is checked. A value with the tenant marker needs a host tenant: with
+     * none, it matches nothing.
+     */
+    private boolean acceptsAudience(List<String> tokenAudience, String hostTenant) {
+        if (audiences.isEmpty()) {
+            return true;
+        }
+        return audiences.stream()
+                .filter(value -> hostTenant != null || !value.contains(TENANT_PLACEHOLDER))
+                .map(value -> hostTenant == null ? value : value.replace(TENANT_PLACEHOLDER, hostTenant))
+                .anyMatch(tokenAudience::contains);
     }
 
     /**

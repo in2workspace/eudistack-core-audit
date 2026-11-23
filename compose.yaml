@@ -58,6 +58,8 @@ services:
       # Verifier of the platform-dev stack; adjust to your local network.
       AUDIT_SECURITY_JWKS_URI: ${AUDIT_SECURITY_JWKS_URI:-http://host.docker.internal:8081/verifier/oauth2/jwks}
       AUDIT_SECURITY_TRUSTED_ISSUERS: ${AUDIT_SECURITY_TRUSTED_ISSUERS:-https://{tenant}.127.0.0.1.nip.io/verifier}
+      # Accepted aud values, comma separated; a value may hold {tenant}. Empty: aud is not checked.
+      AUDIT_SECURITY_AUDIENCE: ${AUDIT_SECURITY_AUDIENCE:-}
       AUDIT_WEB_INTERNAL_HOSTS: 'audit\.internal\..+'
       AUDIT_QUERY_CURSOR_SECRET: local-cursor-secret-not-for-production-0001
       AUDIT_ARCHIVE_STORAGE: filesystem

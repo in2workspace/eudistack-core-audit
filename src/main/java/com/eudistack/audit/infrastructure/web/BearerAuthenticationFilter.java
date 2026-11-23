@@ -37,17 +37,19 @@ public final class BearerAuthenticationFilter extends OncePerRequestFilter {
     private final ProblemMapper problems;
     private final TraceIds traceIds;
     private final ObjectMapper mapper;
+    private final HostTenantResolver hostTenants;
     private final SecurityLog security;
     private final int maxBodyBytes;
 
     public BearerAuthenticationFilter(TokenVerifier verifier, ObjectProvider<RecordEventsPort> recorder,
                                       ProblemMapper problems, TraceIds traceIds, ObjectMapper mapper,
-                                      SecurityLog security, int maxBodyBytes) {
+                                      HostTenantResolver hostTenants, SecurityLog security, int maxBodyBytes) {
         this.verifier = verifier;
         this.recorder = recorder;
         this.problems = problems;
         this.traceIds = traceIds;
         this.mapper = mapper;
+        this.hostTenants = hostTenants;
         this.security = security;
         this.maxBodyBytes = maxBodyBytes;
     }
@@ -66,7 +68,7 @@ public final class BearerAuthenticationFilter extends OncePerRequestFilter {
                     || header.substring(BEARER.length()).isBlank()) {
                 throw new AuthenticationRequiredException("A bearer access token is required");
             }
-            Caller caller = verifier.verify(header.substring(BEARER.length()).trim());
+            Caller caller = verifier.verify(header.substring(BEARER.length()).trim(), hostTenant(request));
             request.setAttribute(ApiRequest.CALLER, caller);
         } catch (AuthenticationRequiredException | InvalidTokenException e) {
             if (ApiRequest.currentFace(request) == ApiRequest.Face.WRITE) {
@@ -84,6 +86,14 @@ public final class BearerAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
         chain.doFilter(request, response);
+    }
+
+    /**
+     * Only the tenant host has a tenant: the internal host is the platform's, so no audience with the
+     * tenant marker can match there (design AD-11).
+     */
+    private String hostTenant(HttpServletRequest request) {
+        return ApiRequest.currentFace(request) == ApiRequest.Face.READ ? hostTenants.resolve(request) : null;
     }
 
     /**

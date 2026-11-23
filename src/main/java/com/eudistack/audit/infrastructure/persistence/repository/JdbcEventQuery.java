@@ -6,6 +6,7 @@ import com.eudistack.audit.domain.model.CursorPosition;
 import com.eudistack.audit.domain.model.QuerySpec;
 import com.eudistack.audit.domain.model.ReadScope;
 import com.eudistack.audit.domain.model.Result;
+import com.eudistack.audit.domain.model.SortOrder;
 import com.eudistack.audit.domain.model.StoredEvent;
 import com.eudistack.audit.domain.model.TenantRef;
 import com.eudistack.audit.domain.port.out.EventQueryPort;
@@ -18,6 +19,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +89,8 @@ public final class JdbcEventQuery implements EventQueryPort {
         for (TenantRef tenant : schemasOf(new ReadScope.AllTenants())) {
             merged.addAll(findIn(jdbc, tenant.schemaName(), spec, spec.after()));
         }
-        merged.sort((a, b) -> a.position().compareTo(b.position()));
+        Comparator<StoredEvent> byPosition = Comparator.comparing(StoredEvent::position);
+        merged.sort(spec.order() == SortOrder.DESC ? byPosition.reversed() : byPosition);
         return merged.size() > spec.limit() + 1 ? List.copyOf(merged.subList(0, spec.limit() + 1)) : merged;
     }
 
@@ -114,17 +117,21 @@ public final class JdbcEventQuery implements EventQueryPort {
             where.append(" AND details @> CAST(:containment AS jsonb)");
             params.put("containment", json(spec.containment()));
         }
+        boolean descending = spec.order() == SortOrder.DESC;
         if (after != null) {
-            // Within one schema the order is (occurred_at, event_id); across schemas the schema breaks ties.
-            boolean inclusive = after.schema() != null && schema.compareTo(after.schema()) > 0;
-            where.append(inclusive ? " AND (occurred_at, event_id) >= (:after_at, :after_id)"
-                    : " AND (occurred_at, event_id) > (:after_at, :after_id)");
+            // Within one schema the order is (occurred_at, event_id); across schemas the schema breaks ties,
+            // in the same direction as the rest of the key.
+            boolean inclusive = after.schema() != null
+                    && (descending ? schema.compareTo(after.schema()) < 0 : schema.compareTo(after.schema()) > 0);
+            where.append(" AND (occurred_at, event_id) ").append(descending ? "<" : ">").append(inclusive ? "=" : "")
+                    .append(" (:after_at, :after_id)");
             params.put("after_at", utc(after.occurredAt()));
             params.put("after_id", after.eventId());
         }
         params.put("limit", spec.limit() + 1);
+        String direction = descending ? "DESC" : "ASC";
         return jdbc.sql("SELECT " + EventSql.COLUMNS + " FROM audit_event WHERE " + where
-                        + " ORDER BY occurred_at, event_id LIMIT :limit")
+                        + " ORDER BY occurred_at " + direction + ", event_id " + direction + " LIMIT :limit")
                 .params(params)
                 .query(sql.rowMapper())
                 .list()

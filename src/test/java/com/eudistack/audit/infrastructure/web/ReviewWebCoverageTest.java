@@ -20,6 +20,7 @@ import com.eudistack.audit.infrastructure.config.ReaderConfiguration;
 import com.eudistack.audit.infrastructure.config.WebConfiguration;
 import com.eudistack.audit.infrastructure.persistence.repository.TenantDirectoryJdbc;
 import com.eudistack.audit.infrastructure.security.CallerClaims;
+import com.eudistack.audit.infrastructure.security.NimbusTokenVerifier;
 import com.eudistack.audit.infrastructure.storage.FileSystemColdStorage;
 import com.eudistack.audit.infrastructure.web.controller.EventsQueryController;
 import com.eudistack.audit.infrastructure.web.controller.EventsWriteController;
@@ -100,11 +101,13 @@ class ReviewWebCoverageTest {
     @Test
     void bearer_countsAnUnreadableBodyAndTurnsAMissingVerifierInto503() throws Exception {
         ProblemMapper problems = new ProblemMapper(new ObjectMapper());
-        TokenVerifier down = token -> {
+        TokenVerifier down = (token, hostTenant) -> {
             throw new ServiceUnavailableException("jwks", null);
         };
         BearerAuthenticationFilter filter = new BearerAuthenticationFilter(down, empty(), problems,
-                new TraceIds(empty()), new ObjectMapper(), new SecurityLog(Clock.systemUTC()), 64);
+                new TraceIds(empty()), new ObjectMapper(),
+                new HostTenantResolver("X-Tenant-Id", List.of(), List.of()),
+                new SecurityLog(Clock.systemUTC()), 64);
         MockHttpServletRequest missing = write();
         MockHttpServletResponse missingResponse = new MockHttpServletResponse();
         filter.doFilter(missing, missingResponse, (request, response) -> {
@@ -156,7 +159,7 @@ class ReviewWebCoverageTest {
         WebConfiguration web = new WebConfiguration();
         assertThat(web.hostPolicyFilter(properties, new ProblemMapper(new ObjectMapper()), AuditTelemetryPort.noop(),
                 new SecurityLog(Clock.systemUTC())).getFilter()).isNotNull();
-        assertThat(web.tenantResolutionFilter(properties).getFilter()).isNotNull();
+        assertThat(web.tenantResolutionFilter(web.hostTenantResolver(properties)).getFilter()).isNotNull();
 
         properties.setRole(AuditRole.ALL);
         assertThat(new ReaderConfiguration().cursorCodec(properties)).isNotNull();
@@ -165,10 +168,14 @@ class ReviewWebCoverageTest {
         assertThatThrownBy(() -> readers.cursorCodec(properties)).isInstanceOf(IllegalStateException.class);
 
         properties.setRole(AuditRole.WRITER);
-        properties.getSecurity().setAudience("https://audit.example");
+        properties.getSecurity().setAudience(List.of("https://audit.example"));
         properties.getSecurity().setJwks(TestTokens.publicJwks());
         properties.getSecurity().setTrustedIssuers(List.of("https://{tenant}.example.test/verifier"));
-        assertThat(new CoreConfiguration().tokenVerifier(properties, new CallerClaims(List.of("-stg")))).isNotNull();
+        NimbusTokenVerifier verifier = new CoreConfiguration().tokenVerifier(properties, new CallerClaims(List.of("-stg")));
+        assertThat(verifier).isNotNull();
+        assertThat(web.bearerAuthenticationFilter(verifier, empty(), new ProblemMapper(new ObjectMapper()),
+                new TraceIds(empty()), new ObjectMapper(), web.hostTenantResolver(properties),
+                new SecurityLog(Clock.systemUTC()), properties).getFilter()).isNotNull();
     }
 
     @Test

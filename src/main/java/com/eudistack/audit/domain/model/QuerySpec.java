@@ -14,6 +14,7 @@ import java.util.Objects;
  * @param eventTypes    event types, empty for all
  * @param results       results, empty for all
  * @param containment   {@code details @>} JSON built from an allow-listed searchable path, or null
+ * @param order         direction of the listing order
  * @param limit         page size
  * @param after         position after which the page starts, or null for the first page
  */
@@ -27,6 +28,7 @@ public record QuerySpec(
         String actorId,
         String organization,
         ObjectNode containment,
+        SortOrder order,
         int limit,
         CursorPosition after
 ) {
@@ -34,6 +36,7 @@ public record QuerySpec(
     public QuerySpec {
         Objects.requireNonNull(from, "from");
         Objects.requireNonNull(to, "to");
+        Objects.requireNonNull(order, "order");
         eventTypes = eventTypes == null ? List.of() : List.copyOf(eventTypes);
         results = results == null ? List.of() : List.copyOf(results);
     }

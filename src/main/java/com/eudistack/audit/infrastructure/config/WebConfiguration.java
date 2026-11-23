@@ -9,6 +9,7 @@ import com.eudistack.audit.infrastructure.security.NimbusTokenVerifier;
 import com.eudistack.audit.infrastructure.web.AccessLogFilter;
 import com.eudistack.audit.infrastructure.web.BearerAuthenticationFilter;
 import com.eudistack.audit.infrastructure.web.HostPolicyFilter;
+import com.eudistack.audit.infrastructure.web.HostTenantResolver;
 import com.eudistack.audit.infrastructure.web.NoStoreFilter;
 import com.eudistack.audit.infrastructure.web.ProblemMapper;
 import com.eudistack.audit.infrastructure.web.RateLimitFilter;
@@ -73,17 +74,23 @@ public class WebConfiguration {
     }
 
     @Bean
-    public FilterRegistrationBean<BearerAuthenticationFilter> bearerAuthenticationFilter(
-            NimbusTokenVerifier verifier, ObjectProvider<RecordEventsPort> recorder, ProblemMapper problems,
-            TraceIds traceIds, ObjectMapper mapper, SecurityLog security, AuditProperties properties) {
-        return register(new BearerAuthenticationFilter(verifier, recorder, problems, traceIds, mapper, security,
-                properties.getWeb().getMaxBodyBytes()), 2);
+    public HostTenantResolver hostTenantResolver(AuditProperties properties) {
+        return new HostTenantResolver(properties.getWeb().getTenantHeader(),
+                properties.getWeb().getEnvironmentSuffixes(), properties.getWeb().getTrustedProxies());
     }
 
     @Bean
-    public FilterRegistrationBean<TenantResolutionFilter> tenantResolutionFilter(AuditProperties properties) {
-        return register(new TenantResolutionFilter(properties.getWeb().getTenantHeader(),
-                properties.getWeb().getEnvironmentSuffixes(), properties.getWeb().getTrustedProxies()), 3);
+    public FilterRegistrationBean<BearerAuthenticationFilter> bearerAuthenticationFilter(
+            NimbusTokenVerifier verifier, ObjectProvider<RecordEventsPort> recorder, ProblemMapper problems,
+            TraceIds traceIds, ObjectMapper mapper, HostTenantResolver hostTenants, SecurityLog security,
+            AuditProperties properties) {
+        return register(new BearerAuthenticationFilter(verifier, recorder, problems, traceIds, mapper, hostTenants,
+                security, properties.getWeb().getMaxBodyBytes()), 2);
+    }
+
+    @Bean
+    public FilterRegistrationBean<TenantResolutionFilter> tenantResolutionFilter(HostTenantResolver hostTenants) {
+        return register(new TenantResolutionFilter(hostTenants), 3);
     }
 
     @Bean

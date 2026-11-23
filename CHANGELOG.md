@@ -4,6 +4,31 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-19
+
+### Added
+
+- **EUD-293 — listado en orden descendente**: `GET /api/v1/events` acepta `order=asc|desc` (por defecto `asc`).
+  Con `desc` ordena por `occurred_at` y `event_id` del más reciente al más antiguo, también en la fusión de
+  `tenant=all`. El cursor firmado lleva el orden de la primera página: un cursor usado con otro `order` es
+  `400 BAD_REQUEST`, y uno emitido antes de este cambio se lee como `asc`.
+- **EUD-293 — administrador de sistema desde el host de un tenant**: sin `tenant`, recibe el ámbito de todo ese
+  tenant (acción A2 de EUD-253) y su `AuditTrailQueried` queda en ese tenant. `tenant` sigue reservado al host de
+  la plataforma. También vale para `GET /api/v1/events/{event_id}`.
+- **EUD-293 — audiencia con marcador de tenant**: `AUDIT_SECURITY_AUDIENCE` admite una lista de valores separados
+  por comas y cada uno puede llevar `{tenant}`, que se sustituye por el tenant del host (por ejemplo
+  `vc-auth-client-{tenant}`, la audiencia de la sesión del portal de administración). En el host interno no hay
+  tenant: ahí solo valen los valores fijos. Sin audiencia, `aud` no se comprueba, como hasta ahora.
+- Tests unitarios y de integración del orden, del ámbito del administrador y de la audiencia.
+
+### Changed
+
+- **EUD-293 — `TokenVerifier.verify` recibe el tenant del host**, que resuelve `HostTenantResolver`, compartido con
+  `TenantResolutionFilter`. El token de recuperación de `RecoverArchiveRunner` se verifica sin tenant.
+- `compose.yaml` pasa `AUDIT_SECURITY_AUDIENCE` al contenedor local. `docs/openapi.yaml`, `docs/architecture.md`
+  (D-16 y R-1) y el README describen `order`, el administrador desde un tenant y la audiencia.
+- Despliegue: primero este servicio, después la IaC con `AUDIT_SECURITY_AUDIENCE` y por último el portal.
+
 ## [Unreleased]
 
 ### Changed (EUD-26)
