@@ -6,12 +6,14 @@ import com.eudistack.audit.application.workflow.QueryRateLimiter;
 import com.eudistack.audit.domain.port.in.RecordEventsPort;
 import com.eudistack.audit.domain.port.out.AuditTelemetryPort;
 import com.eudistack.audit.infrastructure.security.NimbusTokenVerifier;
+import com.eudistack.audit.infrastructure.web.AccessLogFilter;
 import com.eudistack.audit.infrastructure.web.BearerAuthenticationFilter;
 import com.eudistack.audit.infrastructure.web.HostPolicyFilter;
 import com.eudistack.audit.infrastructure.web.HostTenantResolver;
 import com.eudistack.audit.infrastructure.web.NoStoreFilter;
 import com.eudistack.audit.infrastructure.web.ProblemMapper;
 import com.eudistack.audit.infrastructure.web.RateLimitFilter;
+import com.eudistack.audit.infrastructure.web.SecurityLog;
 import com.eudistack.audit.infrastructure.web.TenantResolutionFilter;
 import com.eudistack.audit.infrastructure.web.TraceIds;
 import org.springframework.beans.factory.ObjectProvider;
@@ -22,9 +24,14 @@ import org.springframework.core.Ordered;
 
 import jakarta.servlet.Filter;
 
+import java.time.Clock;
+import java.util.concurrent.ThreadLocalRandom;
+
 /**
- * HTTP filters of design §3.4.1, in order: no-store, host policy (405 / Origin 403), bearer
- * authentication, tenant resolution and rate limit (read face only). They only apply to the API paths.
+ * HTTP filters of design §3.4.1. The access log is the outermost of them, so it still sees a host,
+ * bearer or rate-limit rejection, and it stays inside the server observation. Then, in order:
+ * no-store, host policy (405 / Origin 403), bearer authentication, tenant resolution and rate limit
+ * (read face only). They only apply to the API paths.
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnAuditRole({AuditRole.WRITER, AuditRole.READER, AuditRole.ALL})
@@ -44,15 +51,26 @@ public class WebConfiguration {
     }
 
     @Bean
+    public FilterRegistrationBean<AccessLogFilter> accessLogFilter(AuditProperties properties) {
+        AuditProperties.AccessLog config = properties.getAccessLog();
+        AccessLogFilter filter = new AccessLogFilter(config.isEnabled(), config.getSlowThreshold(),
+                config.getSuccessSampleRate(), Clock.systemUTC(), ThreadLocalRandom.current()::nextDouble);
+        FilterRegistrationBean<AccessLogFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.addUrlPatterns(API_PATTERNS);
+        registration.setOrder(BASE_ORDER - 1);
+        return registration;
+    }
+
+    @Bean
     public FilterRegistrationBean<NoStoreFilter> noStoreFilter() {
         return register(new NoStoreFilter(), 0);
     }
 
     @Bean
     public FilterRegistrationBean<HostPolicyFilter> hostPolicyFilter(AuditProperties properties, ProblemMapper problems,
-                                                                     AuditTelemetryPort telemetry) {
+                                                                     AuditTelemetryPort telemetry, SecurityLog security) {
         return register(new HostPolicyFilter(properties.getWeb().getInternalHosts(), properties.getRole(), problems,
-                telemetry, properties.getWeb().getMaxBodyBytes()), 1);
+                telemetry, security, properties.getWeb().getMaxBodyBytes()), 1);
     }
 
     @Bean
@@ -64,8 +82,10 @@ public class WebConfiguration {
     @Bean
     public FilterRegistrationBean<BearerAuthenticationFilter> bearerAuthenticationFilter(
             NimbusTokenVerifier verifier, ObjectProvider<RecordEventsPort> recorder, ProblemMapper problems,
-            TraceIds traceIds, ObjectMapper mapper, HostTenantResolver hostTenants, AuditProperties properties) {
-        return register(new BearerAuthenticationFilter(verifier, recorder, problems, traceIds, mapper, hostTenants,
+            TraceIds traceIds, ObjectMapper mapper, HostTenantResolver hostTenants, SecurityLog security,
+            AuditProperties properties) {
+        return register(new BearerAuthenticationFilter(verifier, recorder,
+                new BearerAuthenticationFilter.RejectionSupport(problems, security), traceIds, mapper, hostTenants,
                 properties.getWeb().getMaxBodyBytes()), 2);
     }
 
@@ -76,8 +96,9 @@ public class WebConfiguration {
 
     @Bean
     @ConditionalOnAuditRole({AuditRole.READER, AuditRole.ALL})
-    public FilterRegistrationBean<RateLimitFilter> rateLimitFilter(QueryRateLimiter limiter, ProblemMapper problems) {
-        return register(new RateLimitFilter(limiter, problems), 4);
+    public FilterRegistrationBean<RateLimitFilter> rateLimitFilter(QueryRateLimiter limiter, ProblemMapper problems,
+                                                                  SecurityLog security) {
+        return register(new RateLimitFilter(limiter, problems, security), 4);
     }
 
     private static <F extends Filter> FilterRegistrationBean<F> register(F filter, int position) {

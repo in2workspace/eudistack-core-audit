@@ -38,19 +38,23 @@ import java.util.regex.Pattern;
  */
 public final class HostPolicyFilter extends OncePerRequestFilter {
 
+    private static final String BAD_REQUEST = "BAD_REQUEST";
+
     private final List<Pattern> internalHosts;
     private final AuditRole role;
     private final ProblemMapper problems;
     private final AuditTelemetryPort telemetry;
+    private final SecurityLog security;
     private final int maxBodyBytes;
 
     public HostPolicyFilter(List<String> internalHosts, AuditRole role, ProblemMapper problems,
-                            AuditTelemetryPort telemetry, int maxBodyBytes) {
+                            AuditTelemetryPort telemetry, SecurityLog security, int maxBodyBytes) {
         this.internalHosts = internalHosts.stream()
                 .map(h -> Pattern.compile(h, Pattern.CASE_INSENSITIVE)).toList();
         this.role = role;
         this.problems = problems;
         this.telemetry = telemetry;
+        this.security = security;
         this.maxBodyBytes = maxBodyBytes;
     }
 
@@ -80,11 +84,12 @@ public final class HostPolicyFilter extends OncePerRequestFilter {
     private boolean acceptWrite(HttpServletRequest request, HttpServletResponse response, boolean collection,
                                 String method) throws IOException {
         if (!role.writes() || !collection || !HttpMethod.POST.matches(method)) {
-            notAllowed(response, role.writes() && collection ? "POST" : null);
+            notAllowed(request, response, role.writes() && collection ? "POST" : null);
             return false;
         }
         if (request.getHeader(HttpHeaders.ORIGIN) != null) {
             telemetry.writeDenied("browser_origin");
+            security.rejection(request, 403, "insufficient_permission");
             problems.write(response, ProblemMapper.problem("insufficient_permission", "Insufficient permission",
                     403, "Browser requests are not accepted on the internal endpoint", ApiRequest.path(request),
                     List.of()));
@@ -92,7 +97,8 @@ public final class HostPolicyFilter extends OncePerRequestFilter {
         }
         long length = request.getContentLengthLong();
         if (length < 0 || length > maxBodyBytes) {
-            problems.write(response, ProblemMapper.problem("BAD_REQUEST", "The request is not valid", 400,
+            security.rejection(request, 400, BAD_REQUEST);
+            problems.write(response, ProblemMapper.problem(BAD_REQUEST, "The request is not valid", 400,
                     "The body must declare Content-Length and not exceed " + maxBodyBytes + " bytes",
                     ApiRequest.path(request), List.of()));
             return false;
@@ -104,7 +110,7 @@ public final class HostPolicyFilter extends OncePerRequestFilter {
     private boolean acceptRead(HttpServletRequest request, HttpServletResponse response, String method)
             throws IOException {
         if (!role.reads() || !HttpMethod.GET.matches(method)) {
-            notAllowed(response, role.reads() ? "GET" : null);
+            notAllowed(request, response, role.reads() ? "GET" : null);
             return false;
         }
         request.setAttribute(ApiRequest.FACE, ApiRequest.Face.READ);
@@ -115,11 +121,13 @@ public final class HostPolicyFilter extends OncePerRequestFilter {
         return host != null && internalHosts.stream().anyMatch(p -> p.matcher(host).matches());
     }
 
-    private void notAllowed(HttpServletResponse response, String allow) throws IOException {
+    private void notAllowed(HttpServletRequest request, HttpServletResponse response, String allow)
+            throws IOException {
         if (allow != null) {
             response.setHeader(HttpHeaders.ALLOW, allow);
         }
-        problems.write(response, ProblemMapper.problem("BAD_REQUEST", "Method not allowed", 405,
+        security.rejection(request, 405, BAD_REQUEST);
+        problems.write(response, ProblemMapper.problem(BAD_REQUEST, "Method not allowed", 405,
                 "This operation does not exist on this endpoint", null, List.of()));
     }
 

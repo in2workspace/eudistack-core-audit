@@ -73,7 +73,8 @@ class ReviewWebCoverageTest {
                 // not this path
             }
         };
-        EventsWriteController controller = new EventsWriteController(port, new TraceIds(empty()), new ObjectMapper());
+        EventsWriteController controller = new EventsWriteController(port, new TraceIds(empty()), new ObjectMapper(),
+                new SecurityLog(Clock.systemUTC()));
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setAttribute(ApiRequest.CALLER, CALLER);
 
@@ -103,8 +104,10 @@ class ReviewWebCoverageTest {
         TokenVerifier down = (token, hostTenant) -> {
             throw new ServiceUnavailableException("jwks", null);
         };
-        BearerAuthenticationFilter filter = new BearerAuthenticationFilter(down, empty(), problems,
-                new TraceIds(empty()), new ObjectMapper(), new HostTenantResolver("X-Tenant-Id", List.of(), List.of()), 64);
+        BearerAuthenticationFilter filter = new BearerAuthenticationFilter(down, empty(),
+                new BearerAuthenticationFilter.RejectionSupport(problems, new SecurityLog(Clock.systemUTC())),
+                new TraceIds(empty()), new ObjectMapper(),
+                new HostTenantResolver("X-Tenant-Id", List.of(), List.of()), 64);
         MockHttpServletRequest missing = write();
         MockHttpServletResponse missingResponse = new MockHttpServletResponse();
         filter.doFilter(missing, missingResponse, (request, response) -> {
@@ -132,7 +135,8 @@ class ReviewWebCoverageTest {
         Clock clock = Clock.fixed(Instant.parse("2026-10-19T12:00:00Z"), ZoneOffset.UTC);
         QueryRateLimiter limiter = new QueryRateLimiter((key, window) -> 100, clock,
                 new QueryRateLimiter.Limits(1, 1, 1, 1), Map.of(), AuditTelemetryPort.noop());
-        RateLimitFilter filter = new RateLimitFilter(limiter, new ProblemMapper(new ObjectMapper()));
+        RateLimitFilter filter = new RateLimitFilter(limiter, new ProblemMapper(new ObjectMapper()),
+                new SecurityLog(Clock.systemUTC()));
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/v1/events");
         request.setMethod("GET");
@@ -153,8 +157,8 @@ class ReviewWebCoverageTest {
         AuditProperties properties = new AuditProperties();
         assertThat(properties.getWeb().getTrustedProxies()).isEmpty();
         WebConfiguration web = new WebConfiguration();
-        assertThat(web.hostPolicyFilter(properties, new ProblemMapper(new ObjectMapper()), AuditTelemetryPort.noop())
-                .getFilter()).isNotNull();
+        assertThat(web.hostPolicyFilter(properties, new ProblemMapper(new ObjectMapper()), AuditTelemetryPort.noop(),
+                new SecurityLog(Clock.systemUTC())).getFilter()).isNotNull();
         assertThat(web.tenantResolutionFilter(web.hostTenantResolver(properties)).getFilter()).isNotNull();
 
         properties.setRole(AuditRole.ALL);
@@ -170,8 +174,8 @@ class ReviewWebCoverageTest {
         NimbusTokenVerifier verifier = new CoreConfiguration().tokenVerifier(properties, new CallerClaims(List.of("-stg")));
         assertThat(verifier).isNotNull();
         assertThat(web.bearerAuthenticationFilter(verifier, empty(), new ProblemMapper(new ObjectMapper()),
-                new TraceIds(empty()), new ObjectMapper(), web.hostTenantResolver(properties), properties).getFilter())
-                .isNotNull();
+                new TraceIds(empty()), new ObjectMapper(), web.hostTenantResolver(properties),
+                new SecurityLog(Clock.systemUTC()), properties).getFilter()).isNotNull();
     }
 
     @Test
