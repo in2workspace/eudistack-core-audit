@@ -5,6 +5,8 @@ import com.eudistack.audit.domain.model.Caller;
 import com.eudistack.audit.domain.model.Power;
 import com.eudistack.audit.domain.model.ReadScope;
 import com.eudistack.audit.domain.model.TenantRef;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -135,5 +137,115 @@ class ScopePolicyTest {
         assertThat(AccessPolicy.canWrite(writer)).isTrue();
         assertThat(AccessPolicy.canWrite(tenantWriter)).isFalse();
         assertThat(AccessPolicy.canWrite(both)).isFalse();
+    }
+
+    @Nested
+    @DisplayName("platform administrator from a tenant host")
+    class AdministratorFromATenantHost {
+
+        private final Power administration = power("organization", "EUDISTACK", "System", "Administration");
+
+        @Test
+        @DisplayName("resolve_withoutTenantParameter_seesTheWholeHostTenant")
+        void resolve_withoutTenantParameter_seesTheWholeHostTenant() {
+            // Arrange
+            Caller admin = caller("red-logistica", "VATES-EUDISTACK", administration);
+
+            // Act
+            ScopePolicy.Decision decision = resolve(admin, RED, null);
+
+            // Assert
+            assertThat(decision).isEqualTo(new ScopePolicy.Granted(new ReadScope.SingleTenant(RED, null)));
+        }
+
+        @Test
+        @DisplayName("resolve_grantedScope_isRecordedInTheHostTenant")
+        void resolve_grantedScope_isRecordedInTheHostTenant() {
+            // Arrange
+            Caller admin = caller("red-logistica", "VATES-EUDISTACK", administration);
+
+            // Act
+            ScopePolicy.Decision decision = resolve(admin, RED, null);
+
+            // Assert
+            assertThat(decision).isInstanceOfSatisfying(ScopePolicy.Granted.class, granted -> {
+                assertThat(granted.scope().auditTarget()).isEqualTo(RED);
+                assertThat(granted.scope().label()).isEqualTo("red-logistica");
+            });
+        }
+
+        @Test
+        @DisplayName("resolve_alsoHoldingADomainReadPower_stillSeesTheWholeHostTenant")
+        void resolve_alsoHoldingADomainReadPower_stillSeesTheWholeHostTenant() {
+            // Arrange
+            Caller admin = caller("red-logistica", "VATES-SUR", administration,
+                    power("domain", "RED-LOGISTICA", "Audit", "Read"));
+
+            // Act
+            ScopePolicy.Decision decision = resolve(admin, RED, null);
+
+            // Assert
+            assertThat(decision).isEqualTo(new ScopePolicy.Granted(new ReadScope.SingleTenant(RED, null)));
+        }
+
+        @Test
+        @DisplayName("resolve_withTenantParameter_isTenantMismatch")
+        void resolve_withTenantParameter_isTenantMismatch() {
+            // Arrange
+            Caller admin = caller("red-logistica", "VATES-EUDISTACK", administration);
+
+            // Act
+            ScopePolicy.Decision decision = resolve(admin, RED, "sandbox");
+
+            // Assert
+            assertThat(decision).isInstanceOfSatisfying(ScopePolicy.Denied.class,
+                    d -> assertThat(d.reason()).isEqualTo(ScopePolicy.DenialReason.TENANT_MISMATCH));
+        }
+
+        @Test
+        @DisplayName("resolve_tokenOfAnotherTenant_isTenantMismatch")
+        void resolve_tokenOfAnotherTenant_isTenantMismatch() {
+            // Arrange
+            Caller admin = caller("platform", "VATES-EUDISTACK", administration);
+
+            // Act
+            ScopePolicy.Decision decision = resolve(admin, RED, null);
+
+            // Assert
+            assertThat(decision).isInstanceOfSatisfying(ScopePolicy.Denied.class, d -> {
+                assertThat(d.reason()).isEqualTo(ScopePolicy.DenialReason.TENANT_MISMATCH);
+                assertThat(d.auditTarget()).isEqualTo(RED);
+            });
+        }
+
+        @Test
+        @DisplayName("resolve_holdingAWritePower_isPermissionMissing")
+        void resolve_holdingAWritePower_isPermissionMissing() {
+            // Arrange
+            Caller admin = caller("red-logistica", "VATES-EUDISTACK", administration,
+                    power("organization", "EUDISTACK", "Audit", "Write"));
+
+            // Act
+            ScopePolicy.Decision decision = resolve(admin, RED, null);
+
+            // Assert
+            assertThat(decision).isInstanceOfSatisfying(ScopePolicy.Denied.class,
+                    d -> assertThat(d.reason()).isEqualTo(ScopePolicy.DenialReason.PERMISSION_MISSING));
+        }
+
+        @Test
+        @DisplayName("resolve_unrelatedPowerOnATenantHost_isStillPermissionMissing")
+        void resolve_unrelatedPowerOnATenantHost_isStillPermissionMissing() {
+            // Arrange
+            Caller operator = caller("red-logistica", "VATES-B1", power("organization", "RED-LOGISTICA", "Onboarding",
+                    "Execute"));
+
+            // Act
+            ScopePolicy.Decision decision = resolve(operator, RED, null);
+
+            // Assert
+            assertThat(decision).isInstanceOfSatisfying(ScopePolicy.Denied.class,
+                    d -> assertThat(d.reason()).isEqualTo(ScopePolicy.DenialReason.PERMISSION_MISSING));
+        }
     }
 }

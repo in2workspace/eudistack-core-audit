@@ -15,6 +15,7 @@ import com.eudistack.audit.domain.port.in.RecordEventsPort;
 import com.eudistack.audit.infrastructure.config.AuditRole;
 import com.eudistack.audit.infrastructure.config.ConditionalOnAuditRole;
 import com.eudistack.audit.infrastructure.web.ApiRequest;
+import com.eudistack.audit.infrastructure.web.SecurityLog;
 import com.eudistack.audit.infrastructure.web.TraceIds;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -35,11 +36,14 @@ public class EventsWriteController {
 
     private final RecordEventsPort recordEvents;
     private final TraceIds traceIds;
+    private final SecurityLog security;
     private final ObjectReader reader;
 
-    public EventsWriteController(RecordEventsPort recordEvents, TraceIds traceIds, ObjectMapper mapper) {
+    public EventsWriteController(RecordEventsPort recordEvents, TraceIds traceIds, ObjectMapper mapper,
+                                 SecurityLog security) {
         this.recordEvents = recordEvents;
         this.traceIds = traceIds;
+        this.security = security;
         // A duplicated key would make "the event as received" ambiguous: such a body is not valid JSON here.
         this.reader = mapper.reader()
                 .with(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
@@ -52,6 +56,7 @@ public class EventsWriteController {
                                                   @RequestBody(required = false) byte[] body) {
         Caller caller = ApiRequest.authenticatedCaller(request);
         List<EventOutcome> outcomes = recordEvents.recordBatch(caller, parse(body), traceIds.current());
+        security.rejectedBatch(request, outcomes);
         return ResponseEntity.ok(toResponse(outcomes));
     }
 

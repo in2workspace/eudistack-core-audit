@@ -9,8 +9,10 @@ import com.eudistack.audit.domain.model.Caller;
 public interface TokenVerifier {
 
     /**
+     * @param hostTenant tenant of the request host, which resolves the tenant marker of the accepted audiences;
+     *                   {@code null} when the request has none (internal host, recovery)
      * @throws com.eudistack.audit.domain.exception.InvalidTokenException      the token is not valid
      * @throws com.eudistack.audit.domain.exception.ServiceUnavailableException the JWKS is not available
      */
-    Caller verify(String bearerToken);
+    Caller verify(String bearerToken, String hostTenant);
 }

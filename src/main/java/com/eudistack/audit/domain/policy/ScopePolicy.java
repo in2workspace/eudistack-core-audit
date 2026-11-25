@@ -16,6 +16,8 @@ import java.util.function.Function;
  *       Audit · Read} only the events whose {@code organization} is the caller's.</li>
  *   <li>Only the platform administrator, from the platform tenant, sends {@code tenant}: a tenant,
  *       {@code platform} or {@code all}. Without it, the administrator sees {@code platform}.</li>
+ *   <li>From a tenant host and without {@code tenant}, the platform administrator sees the whole tenant, like
+ *       {@code organization · <tenant> · Audit · Read} (EUD-253 action A2).</li>
  *   <li>A caller holding a write power cannot read (FR-02).</li>
  * </ul>
  */
@@ -83,7 +85,7 @@ public final class ScopePolicy {
         if (host.isPlatform()) {
             return denied(DenialReason.PERMISSION_MISSING, host);
         }
-        if (AccessPolicy.readsWholeTenant(caller, host.tenantId())) {
+        if (AccessPolicy.isPlatformAdministrator(caller) || AccessPolicy.readsWholeTenant(caller, host.tenantId())) {
             return new Granted(new ReadScope.SingleTenant(host, null));
         }
         if (AccessPolicy.readsOwnOrganization(caller, host.tenantId()) && caller.organization() != null) {

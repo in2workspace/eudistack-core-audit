@@ -8,6 +8,8 @@ import jakarta.servlet.ServletResponse;
 import com.eudistack.audit.domain.exception.BadRequestException;
 import com.eudistack.audit.domain.port.out.AuditTelemetryPort;
 import com.eudistack.audit.infrastructure.config.AuditRole;
+
+import java.time.Clock;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -24,7 +26,8 @@ class HostPolicyFilterTest {
     private static final int MAX = 8;
 
     private final HostPolicyFilter filter = new HostPolicyFilter(List.of("audit\\.internal\\..+"), AuditRole.WRITER,
-            new ProblemMapper(new ObjectMapper()), AuditTelemetryPort.noop(), MAX);
+            new ProblemMapper(new ObjectMapper()), AuditTelemetryPort.noop(),
+            new SecurityLog(Clock.systemUTC()), MAX);
 
     @Test
     void postWithoutContentLengthIsRejected() throws Exception {
@@ -108,7 +111,8 @@ class HostPolicyFilterTest {
     @Test
     void getOnATenantHostIsTheReadFace() throws Exception {
         HostPolicyFilter reader = new HostPolicyFilter(List.of("audit\\.internal\\..+"), AuditRole.READER,
-                new ProblemMapper(new ObjectMapper()), AuditTelemetryPort.noop(), MAX);
+                new ProblemMapper(new ObjectMapper()), AuditTelemetryPort.noop(),
+                new SecurityLog(Clock.systemUTC()), MAX);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/v1/events");
         request.setMethod("GET");

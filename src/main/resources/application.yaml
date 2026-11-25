@@ -83,11 +83,16 @@ audit:
     # Addresses that may send tenant-header. Empty: the header is ignored and the tenant comes from the host.
     trusted-proxies: []
     max-body-bytes: ${AUDIT_WEB_MAX_BODY_BYTES:5242880}
+  # Operational access log. Production: status >= 400 or slower than the threshold; fast 2xx/3xx are not sampled.
+  access-log:
+    enabled: ${AUDIT_ACCESS_LOG_ENABLED:true}
+    slow-threshold: ${AUDIT_ACCESS_LOG_SLOW_THRESHOLD:500ms}
+    success-sample-rate: ${AUDIT_ACCESS_LOG_SUCCESS_SAMPLE_RATE:0.0}
   security:
     jwks-uri: ${AUDIT_SECURITY_JWKS_URI:}
     # e.g. https://{tenant}.stg.eudistack.net/verifier,https://{tenant}-stg.eudistack.net/verifier
     trusted-issuers: ${AUDIT_SECURITY_TRUSTED_ISSUERS:}
-    # Required for roles writer and reader. Role all (local and CI) may leave it empty until the Verifier emits one (PO-12).
+    # Accepted aud values, comma separated; a value may hold {tenant}, e.g. vc-auth-client-{tenant}. Required for roles writer and reader; role all (local and CI) may leave it empty, and aud is then not checked.
     audience: ${AUDIT_SECURITY_AUDIENCE:}
   datasource:
     writer:

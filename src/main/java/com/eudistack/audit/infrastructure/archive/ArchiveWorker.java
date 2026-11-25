@@ -1,10 +1,12 @@
 package com.eudistack.audit.infrastructure.archive;
 
 import com.eudistack.audit.application.workflow.ArchiveEventsWorkflow;
+import com.eudistack.audit.application.workflow.ArchiveRunLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -31,13 +33,35 @@ public class ArchiveWorker {
      */
     public boolean runOnce() {
         try {
-            List<ArchiveEventsWorkflow.DayOutcome> outcomes = workflow.run();
-            long failures = outcomes.stream().filter(o -> o.status() == ArchiveEventsWorkflow.Status.FAILURE).count();
-            LOG.info("Archiving run finished: {} tenant-days, {} failures", outcomes.size(), failures);
-            return failures == 0;
+            List<ArchiveEventsWorkflow.DayOutcome> outcomes = workflow.run(operationalLog());
+            return outcomes.stream().noneMatch(outcome -> outcome.status() == ArchiveEventsWorkflow.Status.FAILURE);
         } catch (RuntimeException e) {
             LOG.error("Archiving run failed; nothing was deleted for the tenant in progress", e);
             return false;
         }
+    }
+
+    /**
+     * The lines are emitted by the workflow, inside {@code audit.archive.run}. Logging them here,
+     * after {@code run} returns, would leave them without that trace.
+     */
+    private ArchiveRunLog operationalLog() {
+        return new ArchiveRunLog() {
+            @Override
+            public void started(LocalDate cutoffDay, int scopes) {
+                LOG.atInfo().addKeyValue("cutoffDay", cutoffDay.toString()).addKeyValue("scopes", scopes)
+                        .log("Archiving run started");
+            }
+
+            @Override
+            public void finished(int tenantDays, long failures, long durationMs, String result) {
+                LOG.atInfo()
+                        .addKeyValue("tenantDays", tenantDays)
+                        .addKeyValue("failures", failures)
+                        .addKeyValue("durationMs", durationMs)
+                        .addKeyValue("result", result)
+                        .log("Archiving run finished");
+            }
+        };
     }
 }

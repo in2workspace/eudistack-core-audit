@@ -63,6 +63,7 @@ public class EventsQueryController {
                 single(params, "tenant"),
                 single(params, "limit"),
                 single(params, "cursor"),
+                single(params, "order"),
                 receivedFilters(params));
         EventPage page = listEvents.list(context(request), listRequest);
         ObjectNode body = JsonNodeFactory.instance.objectNode();

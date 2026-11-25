@@ -60,7 +60,7 @@ comprueba.
 | D-13 | **Escrituras y lecturas exclusivas**: un token con cualquier poder `Audit · Write` no puede leer y uno con poder de lectura no puede escribir. | FR-02 / PRD §1. |
 | D-14 | **Recuperación de un periodo** (AC-22) como tarea one-shot del rol `archiver` (`audit.recover.*`, token del administrador). Deja `AuditTrailQueried` en el tenant recuperado, por lo que `audit_archiver` tiene `INSERT` en las tablas de tenant, limitado por el trigger a `AuditTrailQueried`/`AuditEventsArchived`. | Diseño §3.4.6, ampliación mínima de los GRANT de §3.4.2. |
 | D-15 | Un día archivado que recibe eventos tarde genera una **parte nueva** (`events-N.jsonl.gz` + `manifest-N.json`): un objeto bloqueado nunca se reescribe. | Completa la §3.4.6. |
-| D-16 | `audit.security.audience` **configurable y desactivado por defecto** hasta que el Verifier emita una audiencia para este servicio (PO-12). Con valor, se exige (`TokenAudienceIT`). | Pregunta 3. |
+| D-16 | `audit.security.audience` es una **lista de valores `aud` aceptados**, desactivada por defecto. Cada valor puede llevar `{tenant}`, que se sustituye por el tenant del host (AD-11), p. ej. `vc-auth-client-{tenant}`. Con valores, el token debe llevar uno (`TokenAudienceIT`). En el host interno no hay tenant: los valores con marcador no casan. | Pregunta 3; diseño AD-11. |
 | D-17 | **OpenTelemetry (§3.10)**: trazas y métricas por OTLP HTTP con Micrometer; los logs, en JSON Logstash por consola (`trace_id`, `span_id`, `service.name`) y además por OTLP con el appender de logback, como el Verifier, para que lleguen al Collector y a OpenObserve sin agente. Sin capa de enmascarado: el servicio no registra cuerpos, actores, detalles ni tokens. | Alineado con el Verifier y el `local-env` de platform-dev. |
 
 ## 3. Cobertura de los criterios de aceptación
@@ -97,7 +97,7 @@ de base de datos y su cifrado (IaC).
 
 | Id | Riesgo | Propuesta |
 |----|--------|-----------|
-| R-1 | Sin `aud` (PO-12) y sin comprobar `typ`, cualquier JWT firmado por el Verifier con `power` sirve como token de acceso (por ejemplo, un `id_token`). | Activar `AUDIT_SECURITY_AUDIENCE` en cuanto el Verifier emita la audiencia, o exigir `typ: at+jwt` si el Verifier lo pone. |
+| R-1 | Sin `aud` configurada y sin comprobar `typ`, cualquier JWT firmado por el Verifier con `power` sirve como token de acceso (por ejemplo, un `id_token`). | Configurar `AUDIT_SECURITY_AUDIENCE` en cada entorno (el Verifier pone el `client_id` del cliente en `aud`; PO-12 cerrado), o exigir `typ: at+jwt` si el Verifier lo pone. |
 | R-2 | `JdbcPool` convierte cualquier `DataAccessException` en 503 + `Retry-After`. Un error no transitorio de la base de datos que la validación no prevea haría que el productor reintentara el lote sin fin. Los casos conocidos (U+0000, años fuera de rango) ya se rechazan antes. | Vigilar `audit.batch.latency{outcome=unavailable}`; si aparece un caso nuevo, rechazarlo en la validación. |
 | R-3 | El cuerpo del `POST` de un llamante autenticado no tiene límite de tamaño en la aplicación; `audit.web.max-body-bytes` solo acota la lectura para `AuditWriteDenied`. | Limitar el tamaño en el ingress interno (PO-9), o exigir `Content-Length` ≤ `max-body-bytes` en `HostPolicyFilter`. |
 | R-4 | `X-Tenant-Id` se acepta de quien llegue: depende de que el ingress la sobrescriba siempre. El impacto está acotado, porque el tenant del token debe coincidir con el de la petición. | Confirmarlo con arquitectura junto con PO-10. |

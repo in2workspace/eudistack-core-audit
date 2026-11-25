@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import com.eudistack.audit.application.workflow.QueryRateLimiter;
 import com.eudistack.audit.domain.exception.AuditDomainException;
+import com.eudistack.audit.domain.exception.RateLimitedException;
 import com.eudistack.audit.domain.model.Caller;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -19,10 +20,12 @@ public final class RateLimitFilter extends OncePerRequestFilter {
 
     private final QueryRateLimiter limiter;
     private final ProblemMapper problems;
+    private final SecurityLog security;
 
-    public RateLimitFilter(QueryRateLimiter limiter, ProblemMapper problems) {
+    public RateLimitFilter(QueryRateLimiter limiter, ProblemMapper problems, SecurityLog security) {
         this.limiter = limiter;
         this.problems = problems;
+        this.security = security;
     }
 
     @Override
@@ -35,6 +38,10 @@ public final class RateLimitFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         try {
             limiter.check((Caller) request.getAttribute(ApiRequest.CALLER), request.getParameter("details_path") != null);
+        } catch (RateLimitedException e) {
+            security.rateLimited(request, e.system(), e.search());
+            problems.write(request, response, e);
+            return;
         } catch (AuditDomainException e) {
             problems.write(request, response, e);
             return;

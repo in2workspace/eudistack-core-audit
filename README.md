@@ -35,11 +35,14 @@ Una sola imagen; `AUDIT_ROLE` decide qué arranca:
 | `AUDIT_DB_URL`, `AUDIT_DB_{WRITER,READER,ARCHIVER,MIGRATOR}_{USER,PASSWORD}` | Base `audit` y credenciales de cada rol |
 | `AUDIT_SECURITY_JWKS_URI` | JWKS del Verifier (URL interna) |
 | `AUDIT_SECURITY_TRUSTED_ISSUERS` | `iss` aceptados, p. ej. `https://{tenant}.stg.eudistack.net/verifier` |
-| `AUDIT_SECURITY_AUDIENCE` | `aud` exigido; vacío hasta que el Verifier la emita (PO-12) |
+| `AUDIT_SECURITY_AUDIENCE` | `aud` aceptados, separados por comas; un valor puede llevar `{tenant}`, p. ej. `vc-auth-client-{tenant}`. Vacío: no se comprueba `aud` |
 | `AUDIT_QUERY_CURSOR_SECRET` | Clave HMAC de los cursores, igual en todas las réplicas reader (≥ 32 bytes) |
 | `AUDIT_ARCHIVE_BUCKET`, `AWS_REGION`, `AUDIT_ARCHIVE_ENDPOINT` | Bucket S3 con Object Lock (Compliance) y SSE-KMS |
 | `AUDIT_PROVISIONER_TENANTS` | Tenants a provisionar (`sandbox,red-logistica,cgcom,dome` en local) |
 | `audit.query.rate-limit*`, `audit.query.rate-limit-overrides.<org>.*` | Límites de FR-18 y ampliaciones por organización |
+| `AUDIT_ACCESS_LOG_ENABLED` | Access log operativo de la API (por defecto `true`) |
+| `AUDIT_ACCESS_LOG_SLOW_THRESHOLD` | A partir de esta duración se registra aunque la respuesta sea correcta (por defecto `500ms`) |
+| `AUDIT_ACCESS_LOG_SUCCESS_SAMPLE_RATE` | Fracción de los 2xx/3xx rápidos que se registra, de `0.0` a `1.0` (por defecto `0.0`: ninguno) |
 | `OTEL_COLLECTOR_GRPC_URL` | Collector OpenTelemetry por gRPC (por defecto `http://127.0.0.1:4317`) |
 | `OTEL_SAMPLING_PROBABILITY`, `MANAGEMENT_OTLP_TRACING_EXPORT_ENABLED`, `MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED`, `MANAGEMENT_OTLP_LOGGING_EXPORT_ENABLED` | Muestreo de trazas (1,0 por defecto) y exportación gRPC de trazas, métricas y logs |
 

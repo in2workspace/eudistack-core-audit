@@ -29,6 +29,7 @@ public class AuditProperties {
     private final Archive archive = new Archive();
     private final Provisioner provisioner = new Provisioner();
     private final Recover recover = new Recover();
+    private final AccessLog accessLog = new AccessLog();
 
     @Getter
     @Setter
@@ -61,10 +62,12 @@ public class AuditProperties {
          */
         private List<String> trustedIssuers = new ArrayList<>();
         /**
-         * Required {@code aud}. The writer and reader roles refuse to start when this is empty.
-         * Role {@code all} (local and CI) may leave it empty until the Verifier emits the audience (PO-12).
+         * Accepted {@code aud} values: the token must carry one of them. A value may hold {@code {tenant}},
+         * replaced by the tenant of the request host, e.g. {@code vc-auth-client-{tenant}}; on a request without
+         * tenant, such a value matches nothing. The writer and reader roles refuse to start when this is empty.
+         * Role {@code all} (local and CI) may leave it empty: {@code aud} is then not checked.
          */
-        private String audience;
+        private List<String> audience = new ArrayList<>();
         private Duration clockSkew = Duration.ofSeconds(60);
         private Duration jwksTimeout = Duration.ofSeconds(2);
     }
@@ -152,6 +155,20 @@ public class AuditProperties {
     public static class Provisioner {
         /** Tenants to provision, in addition to {@code platform}. */
         private List<String> tenants = new ArrayList<>();
+    }
+
+    /**
+     * Operational access log (decisión propia, fase 1). Production default: errors and slow calls
+     * only; fast successful calls are not sampled.
+     */
+    @Getter
+    @Setter
+    public static class AccessLog {
+        private boolean enabled = true;
+        /** A call at least this slow is logged even when it succeeds. */
+        private Duration slowThreshold = Duration.ofMillis(500);
+        /** Fraction of the remaining calls (fast 2xx and 3xx) that are logged. 0 logs none of them. */
+        private double successSampleRate = 0.0;
     }
 
     @Getter
