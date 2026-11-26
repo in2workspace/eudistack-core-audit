@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-26
+
+### Added
+
+- **EUD-382 — catálogo de eventos 2.5.0** (`catalogue/catalogo-eventos-2.5.0.yaml`): el contenido de la 2.4.0 más la categoría `issuance_portal`, con los 14 eventos del portal de emisión. El catálogo 2.2.0 se mantiene sin cambios. Los eventos que genera la propia API pasan a la 2.5.0.
+- Tests de los eventos del portal de emisión.
+
+### Changed
+
+- Despliegue: este servicio va antes que el portal de emisión que emite con el catálogo 2.5.0. Si el portal llega antes, la API rechaza sus eventos.
+
 ## [0.2.0] - 2026-11-19
 
 ### Added
