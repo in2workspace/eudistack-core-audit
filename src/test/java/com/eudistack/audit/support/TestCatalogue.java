@@ -5,7 +5,7 @@ import com.eudistack.audit.infrastructure.catalogue.ClasspathCatalogue;
 import java.util.List;
 
 /**
- * The published catalogue (2.2.0) plus the 2.0.0 and 2.1.0 test fixtures.
+ * The published catalogues (2.2.0 and 2.5.0) plus the 2.0.0 and 2.1.0 test fixtures.
  */
 public final class TestCatalogue {
 

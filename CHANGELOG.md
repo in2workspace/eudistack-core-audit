@@ -8,6 +8,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Despliegue: este servicio va antes que el Verifier que emite con el catálogo 2.4.0 (EUD-313). Si el Verifier llega antes, la API rechaza todos sus eventos, también `SystemAuthenticated` y `ExternalSystemAccess`.
 
+## [0.3.0] - 2026-11-26
+
+### Added
+
+- **EUD-382 — catálogo de eventos 2.5.0** (`catalogue/catalogo-eventos-2.5.0.yaml`): el contenido de la 2.4.0 más la categoría `issuance_portal`, con los 14 eventos del portal de emisión. El catálogo 2.2.0 se mantiene sin cambios. Los eventos que genera la propia API pasan a la 2.5.0.
+- Tests de los eventos del portal de emisión.
+
+### Changed
+
+- Despliegue: este servicio va antes que el portal de emisión que emite con el catálogo 2.5.0. Si el portal llega antes, la API rechaza sus eventos.
+
 ## [0.2.0] - 2026-11-19
 
 ### Added
