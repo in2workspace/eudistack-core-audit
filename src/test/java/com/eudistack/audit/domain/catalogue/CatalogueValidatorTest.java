@@ -287,6 +287,13 @@ class CatalogueValidatorTest {
     }
 
     @Test
+    void publishedCatalogue_certificateAuthentication_isNotIn220() {
+        CatalogueVersion previous = TestCatalogue.published().version("2.2.0").orElseThrow();
+
+        assertThat(previous.types()).hasSize(36).doesNotContainKey("CertificateAuthentication");
+    }
+
+    @Test
     void attributeEvidence_itemCondition_usesTheItemResult() {
         ObjectNode event = issuanceCompleted();
         event.put("event_type", "AttributeVerificationEvidence").put("action", "VerifyAttributes");
