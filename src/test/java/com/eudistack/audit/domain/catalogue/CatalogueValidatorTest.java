@@ -280,10 +280,17 @@ class CatalogueValidatorTest {
     void publishedCatalogue_everyTypeOfThePrd_isDeclared() {
         CatalogueVersion published = TestCatalogue.published().latest();
 
-        assertThat(published.version()).isEqualTo("2.2.0");
-        assertThat(published.types()).hasSize(36).containsKeys("IssuanceRequested", "PresentationVerification",
+        assertThat(published.version()).isEqualTo("2.4.0");
+        assertThat(published.types()).hasSize(37).containsKeys("IssuanceRequested", "PresentationVerification",
                 "EvidenceStoreAccess", "AuditTrailQueried", "AuditWriteDenied", "AuditEventRejected",
-                "AuditEventsArchived");
+                "AuditEventsArchived", "CertificateAuthentication");
+    }
+
+    @Test
+    void publishedCatalogue_certificateAuthentication_isNotIn220() {
+        CatalogueVersion previous = TestCatalogue.published().version("2.2.0").orElseThrow();
+
+        assertThat(previous.types()).hasSize(36).doesNotContainKey("CertificateAuthentication");
     }
 
     @Test

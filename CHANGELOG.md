@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+- Despliegue: este servicio va antes que el Verifier que emite con el catálogo 2.4.0 (EUD-313). Si el Verifier llega antes, la API rechaza todos sus eventos, también `SystemAuthenticated` y `ExternalSystemAccess`.
+
 ## [0.2.0] - 2026-11-19
 
 ### Added
@@ -30,6 +34,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Despliegue: primero este servicio, después la IaC con `AUDIT_SECURITY_AUDIENCE` y por último el portal.
 
 ## [Unreleased]
+
+### Added (EUD-313)
+
+- **Catálogo de eventos 2.4.0** (`catalogue/catalogo-eventos-2.4.0.yaml`), copia del anexo del PRD de EUD-329. Añade el evento `CertificateAuthentication`, el valor `Certificate` en `session_origin` de `IamSessionEstablished` y el campo opcional `trust_warning`. El catálogo 2.2.0 se mantiene sin cambios, así que los productores que siguen emitiendo con la 2.2.0 no se ven afectados. Los eventos que genera la propia API pasan a la 2.4.0.
 
 ### Changed (EUD-26)
 
